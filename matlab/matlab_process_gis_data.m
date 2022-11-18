@@ -10,8 +10,7 @@ close all;
 
 DATASETINDEX=3;
 WINDOWSIZE=40;
-%for datasetIdx=1:NUMDATASETS
-%    DATASETINDEX=datasetIdx;
+
 switch DATASETINDEX
     case 1
         gis_geotiff_filename = 'KOM/raw/kom_dsm_lidar.tif';

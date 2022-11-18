@@ -190,14 +190,10 @@ def get_image_mask_patches(img_dir, mask_dir, hill_dir, img_size=128, step=20, t
     print(large_mask_stack.shape)
     print(large_hill_stack.shape)
 
-    patches_img = patchify(large_image_stack, (img_size, img_size, 3),
-                           step=step)  # Step=128 for 128 patches means no overlap
-
-    patches_mask = patchify(large_mask_stack, (img_size, img_size, 1),
-                            step=step)  # Step=128 for 128 patches means no overlap
-
-    patches_hill = patchify(large_hill_stack, (img_size, img_size, 3),
-                            step=step)  # Step=128 for 128 patches means no overlap
+    # Step=128 for 128 patches means no overlap
+    patches_img = patchify(large_image_stack, (img_size, img_size, 3), step=step)
+    patches_mask = patchify(large_mask_stack, (img_size, img_size, 1), step=step)
+    patches_hill = patchify(large_hill_stack, (img_size, img_size, 3), step=step)
 
     all_img_patches = []
     all_mask_patches = []
@@ -212,7 +208,8 @@ def get_image_mask_patches(img_dir, mask_dir, hill_dir, img_size=128, step=20, t
             # single_patch_mask = get_labels_from_mask(single_patch_mask)
             # area_thresh = get_area_covered(single_patch_mask, th_area)
             # if len(np.unique(single_patch_mask))>1 and area_thresh:
-            if len(np.unique(single_patch_mask)) > 1:
+            WINDOWSIZE=41;
+            if np.count_nonzero(single_patch_mask > 0.0) == WINDOWSIZE*WINDOWSIZE:
                 # check =check_if_obj_border(single_patch_mask[:,:,0:1])
                 # if check!=True:
                 all_mask_patches.append(single_patch_mask[:, :, 0:1])
@@ -233,19 +230,19 @@ def get_image_mask_patches(img_dir, mask_dir, hill_dir, img_size=128, step=20, t
 
 
 def get_sample_display_multiple_img(original, ground_truth, hillshade, n=5):
-    figure, ax = plt.subplots(nrows=n, ncols=3, figsize=(12, n * 5))
+    figure, ax = plt.subplots(nrows=n, ncols=2, figsize=(12, n * 5))
     c = 0
     j = 1
 
     for i in range(n):
-        image_number = random.randint(0, len(ground_truth) - 1)
-        ax.ravel()[c].imshow(original[image_number][:, :, 0:1], cmap='gray')
+        image_number = random.randint(0, ground_truth.shape[0])
+        ax.ravel()[c].imshow(original[image_number], cmap='gray')
         ax.ravel()[c].set_title("Original Image: " + str(image_number))
         ax.ravel()[c + 1].imshow(ground_truth[image_number], cmap='gray')
         ax.ravel()[c + 1].set_title("Ground Truth: " + str(image_number))
-        ax.ravel()[c + 2].imshow(hillshade[image_number][:, :, 0:1], cmap='gray')
-        ax.ravel()[c + 2].set_title("Hillshade: " + str(image_number))
-        c = c + 3
+        # ax.ravel()[c + 2].imshow(hillshade[image_number][:, :, 0:1], cmap='gray')
+        # ax.ravel()[c + 2].set_title("Hillshade: " + str(image_number))
+        c = c + 2
         j = j + 1
     plt.tight_layout()
     plt.show()
@@ -291,19 +288,71 @@ if __name__ == "__main__":
     # merge all the train and split the training into train/validate
     # train 65%
     # validate 15%
-    train_img = np.concatenate((img2, img3), axis=0)
-    train_mask = np.concatenate((mask2, mask3), axis=0)
-    train_hill = np.concatenate((hill2, hill3), axis=0)
-    # train_img = np.concatenate((img1, img2, img3), axis=0)
-    # train_mask = np.concatenate((mask1, mask2, mask3), axis=0)
-    # train_hill = np.concatenate((hill1, hill2, hill3), axis=0)
 
-    val_img = img1
-    val_mask = mask1
-    val_hill = hill1
+    data = []
+    numSamples = [img1.shape[0], img2.shape[0], img3.shape[0]]
+    imagesets = [img1, img2, img3]
+    labelsets = [mask1, mask2, mask3]
+    for datasetIdx in range(3):
+        samples = []
+        for sampleIdx in range(numSamples[datasetIdx]):
+            sample = {}
+            sample['data'] = imagesets[datasetIdx][sampleIdx][:, :, 0]
+            sample['labels'] = labelsets[datasetIdx][sampleIdx][:, :, 0]
+            samples.append(sample)
+        data.append(samples)
 
-    print(train_img.shape)
-    print(val_img.shape)
+    pct_test = 0.2
+    pct_val = 0.15
+    from sklearn.model_selection import train_test_split
+
+    train1, test1 = train_test_split(data[0], test_size=pct_test, random_state=1)
+    train2, test2 = train_test_split(data[1], test_size=pct_test, random_state=1)
+    train3, test3 = train_test_split(data[2], test_size=pct_test, random_state=1)
+    train1, val1 = train_test_split(train1, test_size=pct_val, random_state=1)
+    train2, val2 = train_test_split(train2, test_size=pct_val, random_state=1)
+    train3, val3 = train_test_split(train2, test_size=pct_val, random_state=1)
+
+    test_data = [test1, test2, test3]
+    training_data = [train1, train2, train3]
+    validation_data = [val1, val2, val3]
+
+    training_images = []
+    training_labels = []
+    for datasetIdx in range(3):
+        for sampleIdx in range(len(training_data[datasetIdx])):
+            training_images.append(training_data[datasetIdx][sampleIdx]['data'])
+            training_labels.append(training_data[datasetIdx][sampleIdx]['labels'])
+
+    val_images = []
+    val_labels = []
+    for datasetIdx in range(3):
+        for sampleIdx in range(len(validation_data[datasetIdx])):
+            val_images.append(validation_data[datasetIdx][sampleIdx]['data'])
+            val_labels.append(validation_data[datasetIdx][sampleIdx]['labels'])
+
+    test_images = []
+    test_labels = []
+    for datasetIdx in range(3):
+        for sampleIdx in range(len(test_data[datasetIdx])):
+            test_images.append(test_data[datasetIdx][sampleIdx]['data'])
+            test_labels.append(test_data[datasetIdx][sampleIdx]['labels'])
+
+    train_img = np.array(training_images)
+    train_mask = np.array(training_labels)
+    train_hill = train_img
+
+    val_img = np.array(val_images)
+    val_mask = np.array(val_labels)
+    val_hill = val_img
+
+    test_img = np.array(test_images)
+    test_mask = np.array(test_labels)
+    test_hill = test_img
+
+    print("Train " + str(train_img.shape[0]))
+    print("Validation " + str(val_img.shape[0]))
+    print("Test " + str(test_img.shape[0]))
 
     get_sample_display_multiple_img(train_img, train_mask, train_hill, n=5)
 
@@ -312,16 +361,16 @@ if __name__ == "__main__":
     from sklearn.preprocessing import LabelEncoder
 
     labelencoder = LabelEncoder()
-    n, h, w = train_mask[:, :, :, 0].shape
-    train_masks_reshaped = train_mask[:, :, :, 0].reshape(-1, 1)
+    n, h, w = train_mask[:, :, :].shape
+    train_masks_reshaped = train_mask[:, :, :].reshape(-1, 1)
     print(train_masks_reshaped.shape)
     train_masks_reshaped_encoded = labelencoder.fit_transform(train_masks_reshaped)
     train_masks_encoded_original_shape = train_masks_reshaped_encoded.reshape(n, h, w)
 
     print(np.unique(train_masks_encoded_original_shape))
 
-    n, h, w = val_mask[:, :, :, 0].shape
-    val_masks_reshaped = val_mask[:, :, :, 0].reshape(-1, 1)
+    n, h, w = val_mask[:, :, :].shape
+    val_masks_reshaped = val_mask[:, :, :].reshape(-1, 1)
     val_masks_reshaped_encoded = labelencoder.fit_transform(val_masks_reshaped)
     val_masks_encoded_original_shape = val_masks_reshaped_encoded.reshape(n, h, w)
     print(np.unique(val_masks_encoded_original_shape))
@@ -347,8 +396,8 @@ if __name__ == "__main__":
     val_masks_cat = to_categorical(y_val, num_classes=n_classes)
     y_val_cat = val_masks_cat.reshape((y_val.shape[0], y_val.shape[1], y_val.shape[2], n_classes))
 
-    X_train = np.expand_dims(X_train[:, :, :, 1], axis=3)
-    X_val = np.expand_dims(X_val[:, :, :, 1], axis=3)
+    X_train = np.expand_dims(X_train[:, :, :], axis=3)
+    X_val = np.expand_dims(X_val[:, :, :], axis=3)
 
     #######################################
     # Parameters for model
