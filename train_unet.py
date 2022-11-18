@@ -10,35 +10,35 @@ warnings.filterwarnings('ignore')
 from tensorflow.keras.utils import normalize
 import os
 import cv2
-from PIL import Image
+# from PIL import Image
 import numpy as np
 from matplotlib import pyplot as plt
 from patchify import patchify, unpatchify
-import tifffile as tiff
-from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.optimizers import Adam
+# import tifffile as tiff
+# from sklearn.preprocessing import MinMaxScaler
+# from tensorflow.keras.optimizers import Adam
 import random
 import tensorflow as tf
 from keras.metrics import MeanIoU
-import segmentation_models as sm
+# import segmentation_models as sm
 from keras.callbacks import ModelCheckpoint, EarlyStopping,  CSVLogger
 
-from keras.layers import Input
-from keras.models import Model
-from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate, Conv2DTranspose, BatchNormalization, Dropout, Lambda
+# from keras.layers import Input
+# from keras.models import Model
+# from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate, Conv2DTranspose, BatchNormalization, Dropout, Lambda
 
 import segmentation_models as sm
 
-import albumentations as A
+# import albumentations as A
 
 from tensorflow.keras.optimizers import Adam
 
 from datetime import datetime 
 
-from PIL import Image
-from keras import backend, optimizers
+# from PIL import Image
+# from keras import backend, optimizers
 
-from focal_loss import BinaryFocalLoss
+# from focal_loss import BinaryFocalLoss
 from att_models import Attention_ResUNet, UNet, Attention_UNet, dice_coef, dice_coef_loss, jacard_coef
 
 
@@ -206,29 +206,27 @@ def get_image_mask_patches(img_dir, mask_dir, hill_dir, img_size=128, step=20, t
             single_patch_mask = patches_mask[i,j,0,:,:,:]
 
             single_patch_mask = (single_patch_mask.astype('float32'))
-            single_patch_mask = get_labels_from_mask(single_patch_mask)
+            # single_patch_mask = get_labels_from_mask(single_patch_mask)
             #area_thresh = get_area_covered(single_patch_mask, th_area)
             #if len(np.unique(single_patch_mask))>1 and area_thresh:
             if len(np.unique(single_patch_mask))>1:
-                check =check_if_obj_border(single_patch_mask[:,:,0:1])
-                if check!=True:
-                    all_mask_patches.append(single_patch_mask[:,:,0:1])   
-                    
-                    single_patch_img = patches_img[i,j,0,:,:,:]
-                    single_patch_img = (single_patch_img.astype('float32')) / 255. 
-                    all_img_patches.append(single_patch_img)
-                    
-                    single_patch_hill = patches_hill[i,j,0,:,:,:]
-                    single_patch_hill = (single_patch_hill.astype('float32')) / 255. 
-                    all_hill_patches.append(single_patch_hill)
+                # check =check_if_obj_border(single_patch_mask[:,:,0:1])
+                # if check!=True:
+                all_mask_patches.append(single_patch_mask[:,:,0:1])
+
+                single_patch_img = patches_img[i,j,0,:,:,:]
+                single_patch_img = (single_patch_img.astype('float32')) / 255.
+                all_img_patches.append(single_patch_img)
+
+                single_patch_hill = patches_hill[i,j,0,:,:,:]
+                single_patch_hill = (single_patch_hill.astype('float32')) / 255.
+                all_hill_patches.append(single_patch_hill)
 
     images = np.array(all_img_patches)
     masks = np.array(all_mask_patches) 
     hills = np.array(all_hill_patches) 
     
     return images, masks, hills
-
-
 
 def get_sample_display_multiple_img(original, ground_truth, hillshade, n=5):
     figure, ax = plt.subplots(nrows=n, ncols=3,figsize=(12,n*5) )
@@ -251,245 +249,220 @@ def get_sample_display_multiple_img(original, ground_truth, hillshade, n=5):
 
 # In[4]:
 
+if __name__ == "__main__":
+    home_folder = '/home/fjannat/Documents/EarthVision/data_resource/'
+    home_folder = '/home/arwillis/PyCharm/data/'
+
+    gis_data_path = ['KOM/raw/','MLS/raw/','UCB/raw/']
+    gis_input_filenames = ['kom_dsm_lidar.png',
+                           'MLS_DEM.png',
+                           'UCB_elev_adjusted.png']
+    gis_input_gt_filenames = ['kom_dsm_lidar_gt.png',
+                              'MLS_DEM_gt.png',
+                              'UCB_elev_adjusted_gt.png']
+    img_dir1 = home_folder + gis_data_path[0] + gis_input_filenames[0]
+    mask_dir1 = home_folder + gis_data_path[0] + gis_input_gt_filenames[0]
+    hill_dir1 = img_dir1
+
+    img_dir2 = home_folder + gis_data_path[1] + gis_input_filenames[1]
+    mask_dir2 = home_folder + gis_data_path[1] + gis_input_gt_filenames[1]
+    hill_dir2 = img_dir2
+
+    img_dir3 = home_folder + gis_data_path[2] + gis_input_filenames[2]
+    mask_dir3 = home_folder + gis_data_path[2] + gis_input_gt_filenames[2]
+    hill_dir3 = img_dir3
 
-img_dir1 = '/home/fjannat/Documents/EarthVision/data_resource/DEM/annular_structure/kom_dem.png'
-mask_dir1 = '/home/fjannat/Documents/EarthVision/data_resource/DEM/annular_structure/kom_as.png'
-hill_dir1 = '/home/fjannat/Documents/EarthVision/data_resource/DEM/annular_structure/kom_hill.png'
+    img1, mask1, hill1 = get_image_mask_patches(img_dir1, mask_dir1, hill_dir1, img_size=128, step=40)
+    print(len(img1))
 
-img_dir2 = '/home/fjannat/Documents/EarthVision/data_resource/DEM/annular_structure/mls_dem.png'
-mask_dir2 = '/home/fjannat/Documents/EarthVision/data_resource/DEM/annular_structure/mls_as.png'
-hill_dir2 = '/home/fjannat/Documents/EarthVision/data_resource/DEM/annular_structure/mls_hill.png'
+    img2, mask2, hill2 = get_image_mask_patches(img_dir2, mask_dir2, hill_dir2, img_size=128, step=40)
+    print(len(img2))
 
-img_dir3 = '/home/fjannat/Documents/EarthVision/data_resource/DEM/annular_structure/ucb_dem.png'
-mask_dir3 = '/home/fjannat/Documents/EarthVision/data_resource/DEM/annular_structure/ucb_as.png'
-hill_dir3 = '/home/fjannat/Documents/EarthVision/data_resource/DEM/annular_structure/ucb_hill.png'
+    img3, mask3, hill3 = get_image_mask_patches(img_dir3, mask_dir3, hill_dir3, img_size=128, step=20)
+    print(len(img3))
 
+    # split the data within each image test/train
+    # test 20%
+    # merge all the train and split the training into train/validate
+    # train 65%
+    # validate 15%
+    train_img = np.concatenate((img1, img2, img3), axis=0)
+    train_mask = np.concatenate((mask1, mask2, mask3), axis=0)
+    train_hill = np.concatenate((hill1, hill2, hill3), axis=0)
+    train_img = np.concatenate((img1, img2, img3), axis=0)
+    train_mask = np.concatenate((mask1, mask2, mask3), axis=0)
+    train_hill = np.concatenate((hill1, hill2, hill3), axis=0)
 
-# In[6]:
+    # val_img = img1
+    # val_mask = mask1
+    # val_hill = hill1
 
+    print(train_img.shape)
+    print(val_img.shape)
 
-img1, mask1, hill1= get_image_mask_patches(img_dir1, mask_dir1, hill_dir1, img_size=128, step=40)
-print(len(img1))
+    get_sample_display_multiple_img(train_img, train_mask, train_hill, n=5)
 
+    ###############################################
+    #Encode labels... but multi dim array so need to flatten, encode and reshape
+    from sklearn.preprocessing import LabelEncoder
+    labelencoder = LabelEncoder()
+    n, h, w = train_mask[:,:,:,0].shape
+    train_masks_reshaped = train_mask[:,:,:,0].reshape(-1,1)
+    print(train_masks_reshaped.shape)
+    train_masks_reshaped_encoded = labelencoder.fit_transform(train_masks_reshaped)
+    train_masks_encoded_original_shape = train_masks_reshaped_encoded.reshape(n, h, w)
 
-# In[7]:
+    print(np.unique(train_masks_encoded_original_shape))
 
+    n, h, w = val_mask[:,:,:,0].shape
+    val_masks_reshaped = val_mask[:,:,:,0].reshape(-1,1)
+    val_masks_reshaped_encoded = labelencoder.fit_transform(val_masks_reshaped)
+    val_masks_encoded_original_shape = val_masks_reshaped_encoded.reshape(n, h, w)
+    print(np.unique(val_masks_encoded_original_shape))
 
-img2, mask2, hill2= get_image_mask_patches(img_dir2, mask_dir2, hill_dir2, img_size=128, step=40)
-print(len(img2))
+    train_masks_input = np.expand_dims(train_masks_encoded_original_shape, axis=3)
+    val_masks_input = np.expand_dims(val_masks_encoded_original_shape, axis=3)
+    print(train_masks_input.shape)
 
+    X_train = train_img
+    X_val = val_img
 
-# In[8]:
+    y_train = train_masks_input
+    y_val = val_masks_input
+    print("Class values in the dataset are ... ", np.unique(y_train))  # 0 is the background/few unlabeled
 
+    from tensorflow.keras.utils import to_categorical
+    n_classes=2
 
-img3, mask3, hill3= get_image_mask_patches(img_dir3, mask_dir3, hill_dir3, img_size=128, step=20)
-print(len(img3))
+    train_masks_cat = to_categorical(y_train, num_classes=n_classes)
+    y_train_cat = train_masks_cat.reshape((y_train.shape[0], y_train.shape[1], y_train.shape[2], n_classes))
 
+    val_masks_cat = to_categorical(y_val, num_classes=n_classes)
+    y_val_cat = val_masks_cat.reshape((y_val.shape[0], y_val.shape[1], y_val.shape[2], n_classes))
 
-# In[9]:
+    X_train=np.expand_dims(X_train[:,:,:,1], axis=3)
+    X_val = np.expand_dims(X_val[:,:,:,1], axis=3)
 
+    #######################################
+    #Parameters for model
 
-train_img = np.concatenate((img2, img3), axis=0)
-train_mask = np.concatenate((mask2,mask3), axis=0)
-train_hill = np.concatenate((hill2, hill3), axis=0)
+    IMG_HEIGHT = X_train.shape[1]
+    IMG_WIDTH  = X_train.shape[2]
+    IMG_CHANNELS = X_train.shape[3]
+    input_shape = (IMG_HEIGHT,IMG_WIDTH,IMG_CHANNELS)
+    input_shape
 
-val_img = img1
-val_mask = mask1
-val_hill = hill1
+    BATCH_SIZE = 16
+    EPOCH =500
 
-print(train_img.shape)
-print(val_img.shape)
 
+    sm.set_framework('tf.keras')
 
-# In[10]:
+    sm.framework()
 
+    dice_loss = sm.losses.DiceLoss(class_weights=np.array([.5,.5]))
+    focal_loss = sm.losses.CategoricalFocalLoss()
+    total_loss = dice_loss + (1 * focal_loss)
+    metrics = [total_loss, sm.metrics.IOUScore(threshold=0.5), sm.metrics.FScore(threshold=0.5)]
 
-get_sample_display_multiple_img(train_img, train_mask, train_hill, n=5)
 
+    save_results='/home/fjannat/Documents/EarthVision/Results/annular_structure/dem/unet/trial_2'
 
-# In[11]:
+    if not os.path.exists(save_results):
+        os.makedirs(save_results)
 
 
-###############################################
-#Encode labels... but multi dim array so need to flatten, encode and reshape
-from sklearn.preprocessing import LabelEncoder
-labelencoder = LabelEncoder()
-n, h, w = train_mask[:,:,:,0].shape
-train_masks_reshaped = train_mask[:,:,:,0].reshape(-1,1)
-print(train_masks_reshaped.shape)
-train_masks_reshaped_encoded = labelencoder.fit_transform(train_masks_reshaped)
-train_masks_encoded_original_shape = train_masks_reshaped_encoded.reshape(n, h, w)
 
-print(np.unique(train_masks_encoded_original_shape))
+    checkpoint = ModelCheckpoint(save_results, monitor="val_iou_score", verbose=1, save_best_only=True, mode="max")
+    early_stopping = EarlyStopping(monitor="val_iou_score", patience=150, verbose=1, mode="max")
 
-n, h, w = val_mask[:,:,:,0].shape
-val_masks_reshaped = val_mask[:,:,:,0].reshape(-1,1)
-val_masks_reshaped_encoded = labelencoder.fit_transform(val_masks_reshaped)
-val_masks_encoded_original_shape = val_masks_reshaped_encoded.reshape(n, h, w)
-print(np.unique(val_masks_encoded_original_shape))
+    # create list of callbacks
+    callbacks_list = [checkpoint, early_stopping]  # early_stopping
 
 
-train_masks_input = np.expand_dims(train_masks_encoded_original_shape, axis=3)
-val_masks_input = np.expand_dims(val_masks_encoded_original_shape, axis=3)
-print(train_masks_input.shape)
+    # In[21]:
 
-X_train = train_img
-X_val = val_img
 
-y_train = train_masks_input
-y_val = val_masks_input
-print("Class values in the dataset are ... ", np.unique(y_train))  # 0 is the background/few unlabeled 
 
 
-# In[12]:
+    '''
+    UNet
+    '''
+    unet_model = UNet(input_shape, NUM_CLASSES=2)
+    unet_model.compile(optimizer=Adam(lr = 1e-2), loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=.1),
+                  metrics=metrics)
 
 
-from tensorflow.keras.utils import to_categorical
-n_classes=2
+    #print(unet_model.summary())
 
-train_masks_cat = to_categorical(y_train, num_classes=n_classes)
-y_train_cat = train_masks_cat.reshape((y_train.shape[0], y_train.shape[1], y_train.shape[2], n_classes))
+    start1 = datetime.now()
+    unet_history = unet_model.fit(X_train, y_train_cat,
+                        verbose=1,
+                        batch_size = BATCH_SIZE,
+                        validation_data=(X_val, y_val_cat ),
+                        shuffle=True,
+                        epochs=EPOCH,
+                        callbacks=callbacks_list)
 
+    stop1 = datetime.now()
+    #Execution time of the model
+    execution_time_Unet = stop1-start1
+    print("UNet execution time is: ", execution_time_Unet)
 
-val_masks_cat = to_categorical(y_val, num_classes=n_classes)
-y_val_cat = val_masks_cat.reshape((y_val.shape[0], y_val.shape[1], y_val.shape[2], n_classes))
 
+    # In[22]:
 
 
-# In[13]:
+    unet_model.save(save_results+'/as_unet.hdf5')
 
 
-X_train=np.expand_dims(X_train[:,:,:,1], axis=3)
-X_val = np.expand_dims(X_val[:,:,:,1], axis=3)
+    # In[23]:
 
 
-# In[14]:
+    display_learning_curves(unet_history)
 
 
-#######################################
-#Parameters for model
+    # In[26]:
 
-IMG_HEIGHT = X_train.shape[1]
-IMG_WIDTH  = X_train.shape[2]
-IMG_CHANNELS = X_train.shape[3]
-input_shape = (IMG_HEIGHT,IMG_WIDTH,IMG_CHANNELS)
-input_shape
 
+    unet_model.load_weights(save_results)
+    y_pred1=unet_model.predict(X_val)
+    y_pred1_argmax=np.argmax(y_pred1, axis=3)
 
-# In[20]:
+    n_classes = 2
+    IOU_keras = MeanIoU(num_classes=n_classes)
+    print(IOU_keras)
+    IOU_keras.update_state(val_mask[:,:,:,0], y_pred1_argmax)
+    print("Mean IoU =", IOU_keras.result().numpy())
 
+    values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
+    print(values)
 
-BATCH_SIZE = 16
-EPOCH =500
 
+    # In[25]:
 
-sm.set_framework('tf.keras')
 
-sm.framework()
+    test_img = X_val
+    ground_truth=y_val_cat[:,:,:,1]
+    test_pred1 = unet_model.predict(test_img)
+    test_prediction1 = np.argmax(test_pred1, axis=3)
 
-dice_loss = sm.losses.DiceLoss(class_weights=np.array([.5,.5])) 
-focal_loss = sm.losses.CategoricalFocalLoss()
-total_loss = dice_loss + (1 * focal_loss)
-metrics = [total_loss, sm.metrics.IOUScore(threshold=0.5), sm.metrics.FScore(threshold=0.5)]
+    display_multiple_img(val_hill, test_img, ground_truth, test_prediction1, 'unet_plt_1', save_results, n=5)
 
 
-save_results='/home/fjannat/Documents/EarthVision/Results/annular_structure/dem/unet/trial_2'
+    # In[ ]:
 
-if not os.path.exists(save_results):
-    os.makedirs(save_results) 
-    
-    
 
-checkpoint = ModelCheckpoint(save_results, monitor="val_iou_score", verbose=1, save_best_only=True, mode="max")
-early_stopping = EarlyStopping(monitor="val_iou_score", patience=150, verbose=1, mode="max")
 
-# create list of callbacks
-callbacks_list = [checkpoint, early_stopping]  # early_stopping
 
 
-# In[21]:
+    # In[ ]:
 
 
 
 
-'''
-UNet
-'''
-unet_model = UNet(input_shape, NUM_CLASSES=2)
-unet_model.compile(optimizer=Adam(lr = 1e-2), loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=.1), 
-              metrics=metrics)
 
-
-#print(unet_model.summary())
-
-start1 = datetime.now() 
-unet_history = unet_model.fit(X_train, y_train_cat, 
-                    verbose=1,
-                    batch_size = BATCH_SIZE,
-                    validation_data=(X_val, y_val_cat ), 
-                    shuffle=True,
-                    epochs=EPOCH, 
-                    callbacks=callbacks_list)
-
-stop1 = datetime.now()
-#Execution time of the model 
-execution_time_Unet = stop1-start1
-print("UNet execution time is: ", execution_time_Unet)
-
-
-# In[22]:
-
-
-unet_model.save(save_results+'/as_unet.hdf5')
-
-
-# In[23]:
-
-
-display_learning_curves(unet_history)
-
-
-# In[26]:
-
-
-unet_model.load_weights(save_results)
-y_pred1=unet_model.predict(X_val)
-y_pred1_argmax=np.argmax(y_pred1, axis=3)
-
-n_classes = 2
-IOU_keras = MeanIoU(num_classes=n_classes) 
-print(IOU_keras)
-IOU_keras.update_state(val_mask[:,:,:,0], y_pred1_argmax)
-print("Mean IoU =", IOU_keras.result().numpy())
-
-values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
-print(values)
-
-
-# In[25]:
-
-
-test_img = X_val
-ground_truth=y_val_cat[:,:,:,1]
-test_pred1 = unet_model.predict(test_img)
-test_prediction1 = np.argmax(test_pred1, axis=3)
-
-display_multiple_img(val_hill, test_img, ground_truth, test_prediction1, 'unet_plt_1', save_results, n=5)
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
+    # In[ ]:
 
 
 
