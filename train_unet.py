@@ -268,21 +268,21 @@ hill_dir3 = '/home/fjannat/Documents/EarthVision/data_resource/DEM/annular_struc
 # In[6]:
 
 
-img1, mask1, hill1= get_image_mask_patches(img_dir1, mask_dir1, hill_dir1, img_size=128, step=40, th_area=1)
+img1, mask1, hill1= get_image_mask_patches(img_dir1, mask_dir1, hill_dir1, img_size=128, step=40)
 print(len(img1))
 
 
 # In[7]:
 
 
-img2, mask2, hill2= get_image_mask_patches(img_dir2, mask_dir2, hill_dir2, img_size=128, step=40, th_area=1)
+img2, mask2, hill2= get_image_mask_patches(img_dir2, mask_dir2, hill_dir2, img_size=128, step=40)
 print(len(img2))
 
 
 # In[8]:
 
 
-img3, mask3, hill3= get_image_mask_patches(img_dir3, mask_dir3, hill_dir3, img_size=128, step=20, th_area=1)
+img3, mask3, hill3= get_image_mask_patches(img_dir3, mask_dir3, hill_dir3, img_size=128, step=20)
 print(len(img3))
 
 
