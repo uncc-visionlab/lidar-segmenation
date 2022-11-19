@@ -12,6 +12,7 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 from patchify import patchify, unpatchify
+import pickle
 # import tifffile as tiff
 # from sklearn.preprocessing import MinMaxScaler
 # from tensorflow.keras.optimizers import Adam
@@ -247,13 +248,26 @@ def get_sample_display_multiple_img(original, ground_truth, hillshade, n=5):
     plt.tight_layout()
     plt.show()
 
+def to_pickle(thing, path): # save something
+    with open(path, 'wb') as handle:
+        pickle.dump(thing, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-# In[4]:
+def from_pickle(path): # load something
+    thing = None
+    with open(path, 'rb') as handle:
+        thing = pickle.load(handle)
+    return thing
+
 
 if __name__ == "__main__":
     home_folder = '/home/fjannat/Documents/EarthVision/data_resource/'
     home_folder = '/home/arwillis/PyCharm/'
     results_folder = 'results/'
+    trial_folder = 'unet/trial'
+    model_filename = '/as_unet.hdf5'
+    training_filename = '/data_training.pkl'
+    testing_filename = '/data_testing.pkl'
+    validation_filename = '/data_validation.pkl'
 
     gis_data_path = ['data/KOM/raw/', 'data/MLS/raw/', 'data/UCB/raw/']
     gis_input_filenames = ['kom_dsm_lidar.png',
@@ -420,10 +434,14 @@ if __name__ == "__main__":
     total_loss = dice_loss + (1 * focal_loss)
     metrics = [total_loss, sm.metrics.IOUScore(threshold=0.5), sm.metrics.FScore(threshold=0.5)]
 
-    save_results = home_folder + results_folder + 'unet/trial'
+    save_results = home_folder + results_folder + trial_folder
 
     if not os.path.exists(save_results):
         os.makedirs(save_results)
+
+    to_pickle({'data': train_img, 'labels': train_mask}, home_folder + results_folder + trial_folder + training_filename)
+    to_pickle({'data': test_img, 'labels': test_mask}, home_folder + results_folder + trial_folder + testing_filename)
+    to_pickle({'data': val_img, 'labels': val_mask}, home_folder + results_folder + trial_folder + validation_filename)
 
     checkpoint = ModelCheckpoint(save_results, monitor="val_iou_score", verbose=1, save_best_only=True, mode="max")
     early_stopping = EarlyStopping(monitor="val_iou_score", patience=150, verbose=1, mode="max")
@@ -454,7 +472,7 @@ if __name__ == "__main__":
     execution_time_Unet = stop1 - start1
     print("UNet execution time is: ", execution_time_Unet)
 
-    unet_model.save(save_results + '/as_unet.hdf5')
+    unet_model.save(save_results + model_filename)
 
     display_learning_curves(unet_history)
 
@@ -465,14 +483,14 @@ if __name__ == "__main__":
     n_classes = 2
     IOU_keras = MeanIoU(num_classes=n_classes)
     print(IOU_keras)
-    IOU_keras.update_state(val_mask[:, :, :, 0], y_pred1_argmax)
+    IOU_keras.update_state(val_mask[:, :, :], y_pred1_argmax)
     print("Mean IoU =", IOU_keras.result().numpy())
 
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
     test_img = X_val
-    ground_truth = y_val_cat[:, :, :, 1]
+    ground_truth = y_val_cat[:, :, :]
     test_pred1 = unet_model.predict(test_img)
     test_prediction1 = np.argmax(test_pred1, axis=3)
 
