@@ -462,19 +462,19 @@ if __name__ == "__main__":
 
     n_classes = 2
     IOU_keras = MeanIoU(num_classes=n_classes)
-    print(IOU_keras)
     val_mask = val_mask / 255.0
     IOU_keras.update_state(val_mask, y_pred1_argmax)
     print("Mean IoU on validation data =", IOU_keras.result().numpy())
-
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
     # test_img = X_val
-    ground_truth = test_mask[:, :, :] / 255.0
+    ground_truth = test_mask / 255.0
     test_pred1 = unet_model.predict(X_test)
     test_prediction1 = np.argmax(test_pred1, axis=3)
     IOU_keras.update_state(ground_truth, test_prediction1)
     print("Mean IoU on test data =", IOU_keras.result().numpy())
+    values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
+    print(values)
 
     display_multiple_img(X_test, ground_truth, test_prediction1, 'unet_plt_1', save_results, n=5)
