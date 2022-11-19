@@ -62,6 +62,37 @@ def display_multiple_img(original, ground_truth, y_test_argmax, plt_name, save_r
     plt.savefig(save_results + "/" + str(plt_name) + ".png")
     plt.show()
 
+
+def getRigidImagePatch(img, height, width, center_y, center_x, angle):
+    theta = angle / 180 * np.pi
+    xy_center = (width / 2, height / 2)
+    cos_t = np.cos(theta)
+    sin_t = np.sin(theta)
+    bound_w = int(height * np.abs(sin_t) + width * np.abs(cos_t))
+    bound_h = int(height * np.abs(cos_t) + width * np.abs(sin_t))
+    xy_start = np.array([np.floor(center_x - bound_w / 2), np.floor(center_y - bound_h / 2)], dtype=np.int32)
+    xy_end = np.array([np.ceil(center_x + bound_w / 2), np.ceil(center_y + bound_h / 2)], dtype=np.int32)
+    if np.any(xy_start < 0) or xy_start[0] > img.shape[1] or xy_start[1] > img.shape[0] or \
+            np.any(xy_end < 0) or xy_end[0] > img.shape[1] or xy_end[1] > img.shape[0]:
+        print("Could not extract patch at location (" + str((center_x, center_y)) + ")")
+        return None
+    cropped_image_patch = img[xy_start[0]:xy_end[0], xy_start[1]:xy_end[1], :]
+    cropped_height = cropped_image_patch.shape[0]
+    cropped_width = cropped_image_patch.shape[1]
+
+    # xy_rotation_centerpt = np.array([width / 2, height / 2])
+    xy_translation = np.array([0.5 * (cropped_width - (cos_t * cropped_width + sin_t * cropped_height)),
+                               0.5 * (cropped_height - (-sin_t * cropped_width + cos_t * cropped_height))])
+    image_patch_T = np.float32([[cos_t, sin_t, xy_translation[0]], [-sin_t, cos_t, xy_translation[1]]])
+    transformed_image_patch = cv2.warpAffine(cropped_image_patch, image_patch_T, (cropped_width, cropped_height),
+                                             flags=cv2.INTER_CUBIC)
+
+    xy_center_newimg = np.int32(np.array(transformed_image_patch.shape[:2]) / 2.0)
+    xy_start = np.array([xy_center_newimg[0] - width / 2, xy_center_newimg[1] - height / 2], dtype=np.int32);
+    xy_end = np.array([xy_center_newimg[0] + width / 2, xy_center_newimg[1] + height / 2], dtype=np.int32);
+    image_patch_aug = transformed_image_patch[xy_start[1]:xy_end[1], xy_start[0]:xy_end[0]]
+    return image_patch_aug
+
 def display_learning_curves(history):
     result = history.history
     param = []
@@ -207,7 +238,7 @@ def get_image_mask_patches(img_dir, mask_dir, img_size=128, step=20, th_area=2):
                 all_mask_patches.append(single_patch_mask[:, :, 0:1])
 
                 single_patch_img = patches_img[i, j, 0, :, :, :]
-                single_patch_img = (single_patch_img.astype('float32')) / 255.
+                single_patch_img = (single_patch_img.astype('float32')) / 255.0
                 all_img_patches.append(single_patch_img)
 
     images = np.array(all_img_patches)
@@ -245,7 +276,12 @@ def from_pickle(path): # load something
 if __name__ == "__main__":
 
     BATCH_SIZE = 60
-    EPOCH = 500
+    NUM_EPOCHS = 300
+    IMAGE_SIZE = 128
+
+    # Image augmentation settings
+    NUM_AUGMENTATIONS_PER_IMAGE = 100
+    SHOW_AUGMENTATION = False
 
     # split the data within each image test/train
     # test 20%
@@ -272,29 +308,84 @@ if __name__ == "__main__":
                               'MLS_DEM_gt.png',
                               'UCB_elev_adjusted_gt.png']
 
-    img_dir1 = home_folder + gis_data_path[0] + gis_input_filenames[0]
-    mask_dir1 = home_folder + gis_data_path[0] + gis_input_gt_filenames[0]
+    img_filename1 = home_folder + gis_data_path[0] + gis_input_filenames[0]
+    mask_filename1 = home_folder + gis_data_path[0] + gis_input_gt_filenames[0]
 
-    img_dir2 = home_folder + gis_data_path[1] + gis_input_filenames[1]
-    mask_dir2 = home_folder + gis_data_path[1] + gis_input_gt_filenames[1]
+    img_filename2 = home_folder + gis_data_path[1] + gis_input_filenames[1]
+    mask_filename2 = home_folder + gis_data_path[1] + gis_input_gt_filenames[1]
 
-    img_dir3 = home_folder + gis_data_path[2] + gis_input_filenames[2]
-    mask_dir3 = home_folder + gis_data_path[2] + gis_input_gt_filenames[2]
+    img_filename3 = home_folder + gis_data_path[2] + gis_input_filenames[2]
+    mask_filename3 = home_folder + gis_data_path[2] + gis_input_gt_filenames[2]
 
-    img1, mask1 = get_image_mask_patches(img_dir1, mask_dir1, img_size=128, step=40)
+
+    image_1 = cv2.imread(img_filename1)
+    mask_1 = cv2.imread(mask_filename1)[:, :, 0:1]
+    image_2 = cv2.imread(img_filename2)
+    mask_2 = cv2.imread(mask_filename2)[:, :, 0:1]
+    image_3 = cv2.imread(img_filename3)
+    mask_3 = cv2.imread(mask_filename3)[:, :, 0:1]
+
+    dataset_images =[image_1, image_2, image_3]
+    dataset_masks = [mask_1, mask_2, mask_3]
+
+    # Apply the Component analysis function
+    augmentation_data = []
+
+    #
+    # TODO: ARW
+    # Should select region indices for training, testing and validation then perform augmentation on the indices
+    # separately so the data can be added to the correct dataset.
+    #
+    if NUM_AUGMENTATIONS_PER_IMAGE > 0:
+        if SHOW_AUGMENTATION:
+            figure, handle = plt.subplots(nrows=1, ncols=2, figsize=(6, 4))
+
+        for datasetIdx in range(len(dataset_images)):
+            analysis = cv2.connectedComponentsWithStats(dataset_masks[datasetIdx], cv2.CV_32S)
+            (totalLabels, label_img, regionStats, regionCentroids) = analysis
+            region_centroids = []
+            for regionIdx in range(regionStats.shape[0]):
+                if regionStats[regionIdx][2] == 41 and regionStats[regionIdx][3] == 41:
+                    region_centroids.append(regionCentroids[regionIdx])
+            dataset_augmentations = []
+            augmentation_data.append(dataset_augmentations);
+            for regionIdx in range(len(region_centroids)):
+                for augmentationIdx in range(NUM_AUGMENTATIONS_PER_IMAGE):
+                    sample = {'data': [], 'labels': []}
+                    angle = np.random.uniform(low=0, high=359.9)
+                    center_y, center_x = region_centroids[regionIdx]
+                    dx = np.random.uniform(low=-30, high=30)
+                    dy = np.random.uniform(low=-30, high=30)
+
+                    aug_image_patch = getRigidImagePatch(dataset_images[datasetIdx],
+                                                         IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle)
+                    aug_mask_patch = getRigidImagePatch(dataset_masks[datasetIdx],
+                                                        IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle)
+
+                    aug_image_patch = np.array(aug_image_patch, dtype=np.float32) / 255.0
+                    sample['data'].append(aug_image_patch)
+                    sample['labels'].append(aug_mask_patch)
+                    dataset_augmentations.append(sample)
+                    if aug_image_patch is not None and SHOW_AUGMENTATION:
+                        handle[0].imshow(aug_image_patch, cmap='gray')
+                        handle[1].imshow(aug_mask_patch, cmap='gray')
+                        plt.pause(0.5)
+
+    img1, mask1 = get_image_mask_patches(img_filename1, mask_filename1, img_size=IMAGE_SIZE, step=40)
     print(len(img1))
 
-    img2, mask2 = get_image_mask_patches(img_dir2, mask_dir2, img_size=128, step=40)
+    img2, mask2 = get_image_mask_patches(img_filename2, mask_filename2, img_size=IMAGE_SIZE, step=40)
     print(len(img2))
 
-    img3, mask3 = get_image_mask_patches(img_dir3, mask_dir3, img_size=128, step=20)
+    img3, mask3 = get_image_mask_patches(img_filename3, mask_filename3, img_size=IMAGE_SIZE, step=20)
     print(len(img3))
 
     data = []
     numSamples = [img1.shape[0], img2.shape[0], img3.shape[0]]
     imagesets = [img1, img2, img3]
     labelsets = [mask1, mask2, mask3]
-    for datasetIdx in range(3):
+
+    for datasetIdx in range(len(imagesets)):
         samples = []
         for sampleIdx in range(numSamples[datasetIdx]):
             sample = {}
@@ -303,18 +394,19 @@ if __name__ == "__main__":
             samples.append(sample)
         data.append(samples)
 
+    data.append(augmentation_data[0])
+
     from sklearn.model_selection import train_test_split
 
-    train1, test1 = train_test_split(data[0], test_size=pct_test, random_state=1)
-    train2, test2 = train_test_split(data[1], test_size=pct_test, random_state=1)
-    train3, test3 = train_test_split(data[2], test_size=pct_test, random_state=1)
-    train1, val1 = train_test_split(train1, test_size=pct_val, random_state=1)
-    train2, val2 = train_test_split(train2, test_size=pct_val, random_state=1)
-    train3, val3 = train_test_split(train2, test_size=pct_val, random_state=1)
-
-    test_data = [test1, test2, test3]
-    training_data = [train1, train2, train3]
-    validation_data = [val1, val2, val3]
+    training_data = []
+    test_data = []
+    validation_data = []
+    for datasetIdx in range(len(imagesets)):
+        train, test = train_test_split(data[datasetIdx], test_size=pct_test, random_state=1)
+        train, val = train_test_split(train, test_size=pct_val, random_state=1)
+        training_data.append(train)
+        test_data.append(test)
+        validation_data.append(val)
 
     training_images = []
     training_labels = []
@@ -399,10 +491,10 @@ if __name__ == "__main__":
     #######################################
     # Parameters for model
 
-    IMG_HEIGHT = X_train.shape[1]
-    IMG_WIDTH = X_train.shape[2]
+    # IMG_HEIGHT = X_train.shape[1]
+    # IMG_WIDTH = X_train.shape[2]
     IMG_CHANNELS = X_train.shape[3]
-    input_shape = (IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS)
+    input_shape = (IMAGE_SIZE, IMAGE_SIZE, IMG_CHANNELS)
     input_shape
 
     sm.set_framework('tf.keras')
@@ -444,7 +536,7 @@ if __name__ == "__main__":
                                   batch_size=BATCH_SIZE,
                                   validation_data=(X_val, y_val_cat),
                                   shuffle=True,
-                                  epochs=EPOCH,
+                                  epochs=NUM_EPOCHS,
                                   callbacks=callbacks_list)
 
     stop1 = datetime.now()
@@ -453,6 +545,9 @@ if __name__ == "__main__":
     print("UNet execution time is: ", execution_time_Unet)
 
     unet_model.save(save_results + model_filename)
+
+    # loss, acc = unet_model.evaluate(X_test)
+    # print("Accuracy", acc)
 
     display_learning_curves(unet_history)
 
