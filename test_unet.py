@@ -1,19 +1,19 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import tensorflow as tf
-import segmentation_models as sm
-import glob
-import cv2
-import os
+# import tensorflow as tf
+# import segmentation_models as sm
+# import glob
+# import cv2
+# import os
 import numpy as np
 import pickle
 import random
 from matplotlib import pyplot as plt
-import keras
+# import keras
 
 # from keras.utils import normalize
-from tensorflow.keras.utils import normalize
+# from tensorflow.keras.utils import normalize
 from keras.metrics import MeanIoU
 from keras.models import load_model
 
@@ -63,29 +63,28 @@ if __name__ == "__main__":
     save_results = home_folder + results_folder + trial_folder
 
     # Encode labels... but multi dim array so need to flatten, encode and reshape
-    from sklearn.preprocessing import LabelEncoder
+    # from sklearn.preprocessing import LabelEncoder
     train_mask = training_data['labels']
     val_mask = validation_data['labels']
     test_mask = testing_data['labels']
 
-    labelencoder = LabelEncoder()
-    n, h, w = train_mask[:, :, :].shape
-    train_masks_reshaped = train_mask[:, :, :].reshape(-1, 1)
-    print(train_masks_reshaped.shape)
-    train_masks_reshaped_encoded = labelencoder.fit_transform(train_masks_reshaped)
-    train_masks_encoded_original_shape = train_masks_reshaped_encoded.reshape(n, h, w)
+    # labelencoder = LabelEncoder()
+    # n, h, w = train_mask[:, :, :].shape
+    # train_masks_reshaped = train_mask[:, :, :].reshape(-1, 1)
+    # print(train_masks_reshaped.shape)
+    # train_masks_reshaped_encoded = labelencoder.fit_transform(train_masks_reshaped)
+    # train_masks_encoded_original_shape = train_masks_reshaped_encoded.reshape(n, h, w)
+    # print(np.unique(train_masks_encoded_original_shape))
 
-    print(np.unique(train_masks_encoded_original_shape))
+    # n, h, w = val_mask[:, :, :].shape
+    # val_masks_reshaped = val_mask[:, :, :].reshape(-1, 1)
+    # val_masks_reshaped_encoded = labelencoder.fit_transform(val_masks_reshaped)
+    # val_masks_encoded_original_shape = val_masks_reshaped_encoded.reshape(n, h, w)
+    # print(np.unique(val_masks_encoded_original_shape))
 
-    n, h, w = val_mask[:, :, :].shape
-    val_masks_reshaped = val_mask[:, :, :].reshape(-1, 1)
-    val_masks_reshaped_encoded = labelencoder.fit_transform(val_masks_reshaped)
-    val_masks_encoded_original_shape = val_masks_reshaped_encoded.reshape(n, h, w)
-    print(np.unique(val_masks_encoded_original_shape))
-
-    train_masks_input = np.expand_dims(train_masks_encoded_original_shape, axis=3)
-    val_masks_input = np.expand_dims(val_masks_encoded_original_shape, axis=3)
-    print(train_masks_input.shape)
+    # train_masks_input = np.expand_dims(train_masks_encoded_original_shape, axis=3)
+    # val_masks_input = np.expand_dims(val_masks_encoded_original_shape, axis=3)
+    # print(train_masks_input.shape)
 
     X_train = training_data['data']
     X_val = validation_data['data']
