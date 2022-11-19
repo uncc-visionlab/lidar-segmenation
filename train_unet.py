@@ -178,22 +178,18 @@ def check_if_obj_border(mask):
         return False
 
 
-def get_image_mask_patches(img_dir, mask_dir, hill_dir, img_size=128, step=20, th_area=2):
+def get_image_mask_patches(img_dir, mask_dir, img_size=128, step=20, th_area=2):
     large_image_stack = cv2.imread(img_dir)
     large_mask_stack = cv2.imread(mask_dir)[:, :, 0:1]
-    large_hill_stack = cv2.imread(hill_dir)
     print(large_image_stack.shape)
     print(large_mask_stack.shape)
-    print(large_hill_stack.shape)
 
     # Step=128 for 128 patches means no overlap
     patches_img = patchify(large_image_stack, (img_size, img_size, 3), step=step)
     patches_mask = patchify(large_mask_stack, (img_size, img_size, 1), step=step)
-    patches_hill = patchify(large_hill_stack, (img_size, img_size, 3), step=step)
 
     all_img_patches = []
     all_mask_patches = []
-    all_hill_patches = []
 
     for i in range(patches_mask.shape[0]):
         for j in range(patches_mask.shape[1]):
@@ -214,15 +210,9 @@ def get_image_mask_patches(img_dir, mask_dir, hill_dir, img_size=128, step=20, t
                 single_patch_img = (single_patch_img.astype('float32')) / 255.
                 all_img_patches.append(single_patch_img)
 
-                single_patch_hill = patches_hill[i, j, 0, :, :, :]
-                single_patch_hill = (single_patch_hill.astype('float32')) / 255.
-                all_hill_patches.append(single_patch_hill)
-
     images = np.array(all_img_patches)
     masks = np.array(all_mask_patches)
-    hills = np.array(all_hill_patches)
-
-    return images, masks, hills
+    return images, masks
 
 
 def get_sample_display_multiple_img(original, ground_truth, n=5):
@@ -255,7 +245,7 @@ def from_pickle(path): # load something
 if __name__ == "__main__":
 
     BATCH_SIZE = 60
-    EPOCH = 300
+    EPOCH = 500
 
     # split the data within each image test/train
     # test 20%
@@ -284,23 +274,20 @@ if __name__ == "__main__":
 
     img_dir1 = home_folder + gis_data_path[0] + gis_input_filenames[0]
     mask_dir1 = home_folder + gis_data_path[0] + gis_input_gt_filenames[0]
-    hill_dir1 = img_dir1
 
     img_dir2 = home_folder + gis_data_path[1] + gis_input_filenames[1]
     mask_dir2 = home_folder + gis_data_path[1] + gis_input_gt_filenames[1]
-    hill_dir2 = img_dir2
 
     img_dir3 = home_folder + gis_data_path[2] + gis_input_filenames[2]
     mask_dir3 = home_folder + gis_data_path[2] + gis_input_gt_filenames[2]
-    hill_dir3 = img_dir3
 
-    img1, mask1, hill1 = get_image_mask_patches(img_dir1, mask_dir1, hill_dir1, img_size=128, step=40)
+    img1, mask1 = get_image_mask_patches(img_dir1, mask_dir1, img_size=128, step=40)
     print(len(img1))
 
-    img2, mask2, hill2 = get_image_mask_patches(img_dir2, mask_dir2, hill_dir2, img_size=128, step=40)
+    img2, mask2 = get_image_mask_patches(img_dir2, mask_dir2, img_size=128, step=40)
     print(len(img2))
 
-    img3, mask3, hill3 = get_image_mask_patches(img_dir3, mask_dir3, hill_dir3, img_size=128, step=20)
+    img3, mask3 = get_image_mask_patches(img_dir3, mask_dir3, img_size=128, step=20)
     print(len(img3))
 
     data = []
