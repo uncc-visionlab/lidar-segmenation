@@ -44,8 +44,8 @@ from att_models import Attention_ResUNet, UNet, Attention_UNet, dice_coef, dice_
 # In[3]:
 
 
-def display_multiple_img(hill, original, ground_truth, y_test_argmax, plt_name, save_results, n=5):
-    figure, ax = plt.subplots(nrows=n, ncols=4, figsize=(12, n * 5))
+def display_multiple_img(original, ground_truth, y_test_argmax, plt_name, save_results, n=5):
+    figure, ax = plt.subplots(nrows=n, ncols=3, figsize=(12, n * 2))
     c = 0
     j = 1
     for i in range(n):
@@ -56,16 +56,11 @@ def display_multiple_img(hill, original, ground_truth, y_test_argmax, plt_name, 
         ax.ravel()[c + 1].set_title("Ground Truth: " + str(image_number))
         ax.ravel()[c + 2].imshow(y_test_argmax[image_number], cmap='gray')
         ax.ravel()[c + 2].set_title("Predicted Image: " + str(image_number))
-
-        ax.ravel()[c + 3].imshow(hill[image_number], cmap='gray')
-        ax.ravel()[c + 3].set_title("Hillshade Image: " + str(image_number))
-
-        c = c + 4
+        c = c + 3
         j = j + 1
     plt.tight_layout()
     plt.savefig(save_results + "/" + str(plt_name) + ".png")
     plt.show()
-
 
 def display_learning_curves(history):
     result = history.history
@@ -230,8 +225,8 @@ def get_image_mask_patches(img_dir, mask_dir, hill_dir, img_size=128, step=20, t
     return images, masks, hills
 
 
-def get_sample_display_multiple_img(original, ground_truth, hillshade, n=5):
-    figure, ax = plt.subplots(nrows=n, ncols=2, figsize=(12, n * 5))
+def get_sample_display_multiple_img(original, ground_truth, n=5):
+    figure, ax = plt.subplots(nrows=n, ncols=2, figsize=(12, n * 2))
     c = 0
     j = 1
 
@@ -241,8 +236,6 @@ def get_sample_display_multiple_img(original, ground_truth, hillshade, n=5):
         ax.ravel()[c].set_title("Original Image: " + str(image_number))
         ax.ravel()[c + 1].imshow(ground_truth[image_number], cmap='gray')
         ax.ravel()[c + 1].set_title("Ground Truth: " + str(image_number))
-        # ax.ravel()[c + 2].imshow(hillshade[image_number][:, :, 0:1], cmap='gray')
-        # ax.ravel()[c + 2].set_title("Hillshade: " + str(image_number))
         c = c + 2
         j = j + 1
     plt.tight_layout()
@@ -260,6 +253,18 @@ def from_pickle(path): # load something
 
 
 if __name__ == "__main__":
+
+    BATCH_SIZE = 60
+    EPOCH = 300
+
+    # split the data within each image test/train
+    # test 20%
+    # merge all the train and split the training into train/validate
+    # train 65%
+    # validate 15%
+    pct_test = 0.2
+    pct_val = 0.15
+
     home_folder = '/home/fjannat/Documents/EarthVision/data_resource/'
     home_folder = '/home/arwillis/PyCharm/'
     results_folder = 'results/'
@@ -276,6 +281,7 @@ if __name__ == "__main__":
     gis_input_gt_filenames = ['kom_dsm_lidar_gt.png',
                               'MLS_DEM_gt.png',
                               'UCB_elev_adjusted_gt.png']
+
     img_dir1 = home_folder + gis_data_path[0] + gis_input_filenames[0]
     mask_dir1 = home_folder + gis_data_path[0] + gis_input_gt_filenames[0]
     hill_dir1 = img_dir1
@@ -297,12 +303,6 @@ if __name__ == "__main__":
     img3, mask3, hill3 = get_image_mask_patches(img_dir3, mask_dir3, hill_dir3, img_size=128, step=20)
     print(len(img3))
 
-    # split the data within each image test/train
-    # test 20%
-    # merge all the train and split the training into train/validate
-    # train 65%
-    # validate 15%
-
     data = []
     numSamples = [img1.shape[0], img2.shape[0], img3.shape[0]]
     imagesets = [img1, img2, img3]
@@ -316,8 +316,6 @@ if __name__ == "__main__":
             samples.append(sample)
         data.append(samples)
 
-    pct_test = 0.2
-    pct_val = 0.15
     from sklearn.model_selection import train_test_split
 
     train1, test1 = train_test_split(data[0], test_size=pct_test, random_state=1)
@@ -354,21 +352,18 @@ if __name__ == "__main__":
 
     train_img = np.array(training_images)
     train_mask = np.array(training_labels)
-    train_hill = train_img
 
     val_img = np.array(val_images)
     val_mask = np.array(val_labels)
-    val_hill = val_img
 
     test_img = np.array(test_images)
     test_mask = np.array(test_labels)
-    test_hill = test_img
 
     print("Train " + str(train_img.shape[0]))
     print("Validation " + str(val_img.shape[0]))
     print("Test " + str(test_img.shape[0]))
 
-    get_sample_display_multiple_img(train_img, train_mask, train_hill, n=5)
+    get_sample_display_multiple_img(train_img, train_mask, n=5)
 
     ###############################################
     # Encode labels... but multi dim array so need to flatten, encode and reshape
@@ -395,6 +390,7 @@ if __name__ == "__main__":
 
     X_train = train_img
     X_val = val_img
+    X_test = test_img
 
     y_train = train_masks_input
     y_val = val_masks_input
@@ -421,9 +417,6 @@ if __name__ == "__main__":
     IMG_CHANNELS = X_train.shape[3]
     input_shape = (IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS)
     input_shape
-
-    BATCH_SIZE = 40
-    EPOCH = 500
 
     sm.set_framework('tf.keras')
 
@@ -483,15 +476,18 @@ if __name__ == "__main__":
     n_classes = 2
     IOU_keras = MeanIoU(num_classes=n_classes)
     print(IOU_keras)
-    IOU_keras.update_state(val_mask[:, :, :], y_pred1_argmax)
-    print("Mean IoU =", IOU_keras.result().numpy())
+    val_mask = val_mask / 255.0
+    IOU_keras.update_state(val_mask, y_pred1_argmax)
+    print("Mean IoU on validation data =", IOU_keras.result().numpy())
 
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
-    test_img = X_val
-    ground_truth = y_val_cat[:, :, :]
-    test_pred1 = unet_model.predict(test_img)
+    # test_img = X_val
+    ground_truth = test_mask[:, :, :] / 255.0
+    test_pred1 = unet_model.predict(X_test)
     test_prediction1 = np.argmax(test_pred1, axis=3)
+    IOU_keras.update_state(ground_truth, test_prediction1)
+    print("Mean IoU on test data =", IOU_keras.result().numpy())
 
-    display_multiple_img(val_hill, test_img, ground_truth, test_prediction1, 'unet_plt_1', save_results, n=5)
+    display_multiple_img(X_test, ground_truth, test_prediction1, 'unet_plt_1', save_results, n=5)

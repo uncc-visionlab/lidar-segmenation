@@ -8,6 +8,7 @@ import cv2
 import os
 import numpy as np
 import pickle
+import random
 from matplotlib import pyplot as plt
 import keras
 
@@ -26,7 +27,25 @@ def from_pickle(path): # load something
         thing = pickle.load(handle)
     return thing
 
-### FOR NOW LET US FOCUS ON A SINGLE MODEL
+def display_multiple_img(original, ground_truth, y_test_argmax, plt_name, save_results, n=5):
+    figure, ax = plt.subplots(nrows=n, ncols=3, figsize=(8, n * 2))
+    c = 0
+    j = 1
+    for i in range(n):
+        image_number = random.randint(0, len(ground_truth) - 1)
+        ax.ravel()[c].imshow(original[image_number], cmap='gray')
+        ax.ravel()[c].set_title("Hillshade Image: " + str(image_number))
+        ax.ravel()[c + 1].imshow(ground_truth[image_number], cmap='gray')
+        ax.ravel()[c + 1].set_title("Ground Truth: " + str(image_number))
+        ax.ravel()[c + 2].imshow(y_test_argmax[image_number], cmap='gray')
+        ax.ravel()[c + 2].set_title("Predicted Image: " + str(image_number))
+        c = c + 3
+        j = j + 1
+
+    plt.tight_layout()
+    plt.savefig(save_results + "/" + str(plt_name) + ".png")
+    plt.show()
+
 if __name__ == "__main__":
     home_folder = '/home/fjannat/Documents/EarthVision/data_resource/'
     home_folder = '/home/arwillis/PyCharm/'
@@ -41,10 +60,12 @@ if __name__ == "__main__":
     testing_data = from_pickle(home_folder + results_folder + trial_folder + testing_filename)
     validation_data = from_pickle(home_folder + results_folder + trial_folder + validation_filename)
 
+    save_results = home_folder + results_folder + trial_folder
+
     # Encode labels... but multi dim array so need to flatten, encode and reshape
     from sklearn.preprocessing import LabelEncoder
     train_mask = training_data['labels']
-    val_mask = training_data['labels']
+    val_mask = validation_data['labels']
     test_mask = testing_data['labels']
 
     labelencoder = LabelEncoder()
@@ -82,15 +103,18 @@ if __name__ == "__main__":
     n_classes = 2
     IOU_keras = MeanIoU(num_classes=n_classes)
     print(IOU_keras)
-    IOU_keras.update_state(val_mask[:, :, :], y_pred1_argmax)
-    print("Mean IoU =", IOU_keras.result().numpy())
+    val_mask = val_mask / 255.0
+    IOU_keras.update_state(val_mask, y_pred1_argmax)
+    print("Mean IoU on validation data =", IOU_keras.result().numpy())
 
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
-    test_img = X_val
-    ground_truth = y_val_cat[:, :, :]
-    test_pred1 = unet_model.predict(test_img)
+    # test_img = X_val
+    ground_truth = test_mask[:, :, :] / 255.0
+    test_pred1 = unet_model.predict(X_test)
     test_prediction1 = np.argmax(test_pred1, axis=3)
+    IOU_keras.update_state(ground_truth, test_prediction1)
+    print("Mean IoU on test data =", IOU_keras.result().numpy())
 
-    display_multiple_img(val_hill, test_img, ground_truth, test_prediction1, 'unet_plt_1', save_results, n=5)
+    display_multiple_img(X_test, ground_truth, test_prediction1, 'unet_plt_1', save_results, n=5)
