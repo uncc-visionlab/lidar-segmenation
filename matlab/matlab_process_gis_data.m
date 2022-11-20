@@ -128,13 +128,8 @@ for shapefileIndex=1:length(gis_esri_shapefilenames)
         end
         
         % create the ground truth labels for this region
-        if (shapefileIndex == 1) % we are working with annular structures
-            bw = poly2mask(my_vertices(:,1), my_vertices(:,2), image_size(1), image_size(2));
-            image_geo_ground_truth(bw==1) = shapefileIndex;
-        else
-            bw = poly2mask(my_vertices(:,1), my_vertices(:,2), image_size(1), image_size(2));
-            image_geo_ground_truth(bw==1) = shapefileIndex;
-        end
+        bw = poly2mask(my_vertices(:,1), my_vertices(:,2), image_size(1), image_size(2));
+        image_geo_ground_truth(bw==1) = shapefileIndex;
         
     end
 end
