@@ -77,7 +77,7 @@ def getRigidImagePatch(img, height, width, center_y, center_x, angle):
     xy_end = np.array([np.ceil(center_x + bound_w / 2), np.ceil(center_y + bound_h / 2)], dtype=np.int32)
     if np.any(xy_start < 0) or xy_start[0] > img.shape[1] or xy_start[1] > img.shape[0] or \
             np.any(xy_end < 0) or xy_end[0] > img.shape[1] or xy_end[1] > img.shape[0]:
-        print("Could not extract patch at location (" + str((center_x, center_y)) + ")")
+        # print("Could not extract patch at location (" + str((center_x, center_y)) + ")")
         return None
     cropped_image_patch = img[xy_start[0]:xy_end[0], xy_start[1]:xy_end[1], :]
     cropped_height = cropped_image_patch.shape[0]
@@ -235,7 +235,7 @@ def get_image_mask_patches(img_dir, mask_dir, img_size=128, step=20, th_area=2):
             # single_patch_mask = get_labels_from_mask(single_patch_mask)
             # area_thresh = get_area_covered(single_patch_mask, th_area)
             # if len(np.unique(single_patch_mask))>1 and area_thresh:
-            WINDOWSIZE = 41;
+            WINDOWSIZE = 40
             if np.count_nonzero(single_patch_mask > 0.0) == WINDOWSIZE * WINDOWSIZE:
                 # check =check_if_obj_border(single_patch_mask[:,:,0:1])
                 # if check!=True:
@@ -387,6 +387,8 @@ if __name__ == "__main__":
     # Additional code needs to be written to exclude regions from the training set that include elements of the
     # test set within their images.
     #
+    from sklearn.model_selection import train_test_split
+
     if NUM_AUGMENTATIONS_PER_IMAGE > 0:
         if SHOW_AUGMENTATION:
             figure, handle = plt.subplots(nrows=1, ncols=2, figsize=(6, 4))
@@ -394,19 +396,40 @@ if __name__ == "__main__":
         for datasetIdx in range(len(dataset_images)):
             analysis = cv2.connectedComponentsWithStats(dataset_masks[datasetIdx], cv2.CV_32S)
             (totalLabels, label_img, regionStats, regionCentroids) = analysis
-            region_centroids = []
-            for regionIdx in range(regionStats.shape[0]):
-                if regionStats[regionIdx][2] == 41 and regionStats[regionIdx][3] == 41:
-                    region_centroids.append(regionCentroids[regionIdx])
+            numRegions = regionStats.shape[0];
+
+            datavectorIndices = list(range(0, numRegions))
+            training_indices, testing_indices = train_test_split(datavectorIndices, test_size=pct_test, random_state=1)
+
             dataset_augmentations = []
-            augmentation_data.append(dataset_augmentations);
-            for regionIdx in range(len(region_centroids)):
+
+            region_centroids = []
+            for regionIdx in range(len(datavectorIndices)):
+                # if regionStats[training_indices[regionIdx]][2] == 40 and regionStats[training_indices[regionIdx]][3] == 40:
+                # if regionStats[training_indices[regionIdx]][2] * regionStats[training_indices[regionIdx]][3] > 900:
+                region_centroids.append(regionCentroids[regionIdx])
+
+            augmentation_data.append(dataset_augmentations)
+            numTrainingRegions = len(training_indices)
+            numTestingRegions = len(testing_indices)
+            for regionIdx in range(numTrainingRegions):
                 for augmentationIdx in range(NUM_AUGMENTATIONS_PER_IMAGE):
                     sample = {'data': [], 'labels': []}
                     angle = np.random.uniform(low=0, high=359.9)
-                    center_y, center_x = region_centroids[regionIdx]
+                    trainingIndex = training_indices[regionIdx]
+                    center_y, center_x = region_centroids[trainingIndex]
                     dx = np.random.uniform(low=-30, high=30)
                     dy = np.random.uniform(low=-30, high=30)
+                    aug_image_center = np.array([center_x + dx, center_y + dy], dtype=np.float32)
+
+                    for testRegionIdx in range(numTestingRegions):
+                        testingIndex = testing_indices[testRegionIdx]
+                        aug_image_center_to_testRegion_vector = region_centroids[testingIndex] - aug_image_center;
+                        train_to_test_Distance = np.linalg.norm(aug_image_center_to_testRegion_vector)
+                        if train_to_test_Distance < 1.5 * IMAGE_SIZE * np.sqrt(2) + 21:
+                            print("Skip augmentation at image center (" + str(aug_image_center_to_testRegion_vector) +")"
+                                  " distance to test set = " + str(train_to_test_Distance))
+                            continue
 
                     aug_image_patch = getRigidImagePatch(dataset_images[datasetIdx],
                                                          IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle)

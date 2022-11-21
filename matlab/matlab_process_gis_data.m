@@ -10,6 +10,7 @@ DATASETINDEX = 1;
 % PLOT_REGION_MESH = false;
 PLOT_REGION_MESH = true;
 IGNORE_POLYGONS = true;
+MAX_INTENSITY = 255;
 
 region(1).Name = 'Annular structure';
 region(1).WINDOWSIZE = 40;
@@ -29,21 +30,26 @@ for datasetIdx=1:NUMDATASETS
     switch DATASETINDEX
         case 1
             gis_geotiff_filename = 'KOM/raw/kom_dsm_lidar.tif';
-            gis_esri_shapefilenames = {'KOM/raw/Kom_Annular_strs.shp','KOM/raw/Kom_platforms.shp'};
+            %gis_esri_shapefilenames = {'KOM/raw/Kom_Annular_strs.shp','KOM/raw/Kom_platforms.shp'};
+            %gis_esri_shapefilenames = {'KOM/raw/Kom_Annular_strs.shp','KOM/raw/Kom_AI_platforms.shp'};
+            gis_esri_shapefilenames = {'KOM/raw/Kom_Annular_strs.shp'};
             %gis_esri_shapefilenames = {'KOM/raw/Kom_Annular_strs.shp'};
             gis_output_filename = 'KOM/raw/kom_dsm_lidar.png';
+            gis_output_hillshade_filename = 'KOM/raw/kom_dsm_lidar_hs.png';
             gis_output_gt_filename = 'KOM/raw/kom_dsm_lidar_gt.png';
             
         case 2
             gis_geotiff_filename = 'MLS/raw/MLS_DEM.tif';
             gis_esri_shapefilenames = {'MLS/raw/MLS_Annular_strs.shp'};
             gis_output_filename = 'MLS/raw/MLS_DEM.png';
+            gis_output_hillshade_filename = 'MLS/raw/MLS_DEM_hs.png';
             gis_output_gt_filename = 'MLS/raw/MLS_DEM_gt.png';
             
         case 3
             gis_geotiff_filename = 'UCB/raw/UCB_elev_adjusted.tif';
             gis_esri_shapefilenames = {'UCB/raw/UBM_anulares.shp'};
             gis_output_filename = 'UCB/raw/UCB_elev_adjusted.png';
+            gis_output_hillshade_filename = 'UCB/raw/UCB_elev_adjusted_hs.png';
             gis_output_gt_filename = 'UCB/raw/UCB_elev_adjusted_gt.png';
             
         otherwise
@@ -62,22 +68,23 @@ for datasetIdx=1:NUMDATASETS
     end
     
     % normalize the elevation data to the 0-MAX_INTENSITY intensity range
-    MAX_INTENSITY = 255;
     minValue = min(geotiff_data(:));
     maxValue = max(geotiff_data(:));
     range = maxValue - minValue;
-    image_geo_output = uint8(MAX_INTENSITY*(geotiff_data-minValue)/(maxValue-minValue));
-    imwrite(image_geo_output,gis_output_filename);
+    image_geo_output = uint8(MAX_INTENSITY*(geotiff_data-minValue)/range);
+    imwrite(image_geo_output, gis_output_filename);
 
-    x_arw=(1:size(geotiff_data,1))';
-    y_arw=1:size(geotiff_data,2);  
-    hillshade_image=hillshade_esri(geotiff_data,x_arw,y_arw);
+    % generate a hillshade image with a normalized 0-MAX_INTENSITY intensity range
+    x_hs=(1:size(geotiff_data, 1))';
+    y_hs=1:size(geotiff_data, 2);  
+    hillshade_image=hillshade_esri(geotiff_data, x_hs, y_hs);
     minValue = min(hillshade_image(:));
     maxValue = max(hillshade_image(:));
     range = maxValue - minValue;
-    image_geo_hillshade_output = uint8(MAX_INTENSITY*(hillshade_image-minValue)/(maxValue-minValue));
+    image_geo_hillshade_output = uint8(MAX_INTENSITY*(hillshade_image-minValue)/range);
     figure(4), imshow(image_geo_hillshade_output);
-    
+    imwrite(image_geo_hillshade_output, gis_output_hillshade_filename);
+
     image_geo_ground_truth = zeros(size(image_geo_output));
     
     image_size=size(geotiff_data);
@@ -125,6 +132,10 @@ for datasetIdx=1:NUMDATASETS
             end
             
             figure(1), hold on, drawpolygon('Position', my_vertices, ...
+                'MarkerSize', 5, ...
+                'LineWidth',1,'FaceAlpha', 0.3, 'Color', region(shapefileIndex).Color, ...
+                'SelectedColor', region(shapefileIndex).Color);
+            figure(4), hold on, drawpolygon('Position', my_vertices, ...
                 'MarkerSize', 5, ...
                 'LineWidth',1,'FaceAlpha', 0.3, 'Color', region(shapefileIndex).Color, ...
                 'SelectedColor', region(shapefileIndex).Color);
