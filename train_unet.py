@@ -91,8 +91,8 @@ def getRigidImagePatch(img, height, width, center_y, center_x, angle):
                                              flags=cv2.INTER_CUBIC)
 
     xy_center_newimg = np.int32(np.array(transformed_image_patch.shape[:2]) / 2.0)
-    xy_start = np.array([xy_center_newimg[0] - width / 2, xy_center_newimg[1] - height / 2], dtype=np.int32);
-    xy_end = np.array([xy_center_newimg[0] + width / 2, xy_center_newimg[1] + height / 2], dtype=np.int32);
+    xy_start = np.array([xy_center_newimg[0] - width / 2, xy_center_newimg[1] - height / 2], dtype=np.int32)
+    xy_end = np.array([xy_center_newimg[0] + width / 2, xy_center_newimg[1] + height / 2], dtype=np.int32)
     image_patch_aug = transformed_image_patch[xy_start[1]:xy_end[1], xy_start[0]:xy_end[0]]
     return image_patch_aug
 
@@ -341,7 +341,7 @@ if __name__ == "__main__":
 
     home_folder = '/home/fjannat/Documents/EarthVision/data_resource/'
     home_folder = '/home/arwillis/PyCharm/'
-    home_folder = './'
+    # home_folder = './'
     results_folder = 'results/'
     trial_folder = 'unet/trial'
     model_filename = '/as_unet.hdf5'
@@ -383,6 +383,9 @@ if __name__ == "__main__":
     # TODO: ARW
     # Should select region indices for training, testing and validation then perform augmentation on the indices
     # separately so the data can be added to the correct dataset.
+    #
+    # Additional code needs to be written to exclude regions from the training set that include elements of the
+    # test set within their images.
     #
     if NUM_AUGMENTATIONS_PER_IMAGE > 0:
         if SHOW_AUGMENTATION:
