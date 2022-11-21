@@ -67,7 +67,7 @@ def display_multiple_img(original, ground_truth, y_test_argmax, plt_name, save_r
 
 
 def getRigidImagePatch(img, height, width, center_y, center_x, angle):
-    theta = angle / 180 * np.pi
+    theta = (angle / 180) * np.pi
     xy_center = (width / 2, height / 2)
     cos_t = np.cos(theta)
     sin_t = np.sin(theta)
@@ -373,11 +373,17 @@ if __name__ == "__main__":
     image_3 = cv2.imread(img_filename3)
     mask_3 = cv2.imread(mask_filename3)[:, :, 0:1]
 
-    dataset_images = [image_1, image_2, image_3]
-    dataset_masks = [mask_1, mask_2, mask_3]
+    datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
+    datasets['data'] = [image_1, image_2, image_3]
+    datasets['labels'] = [mask_1, mask_2, mask_3]
+    num_datasets = len(datasets['data'])
 
-    # Apply the Component analysis function
-    augmentation_data = []
+    for datasetIdx in range(num_datasets):
+        analysis = cv2.connectedComponentsWithStats(datasets['labels'][datasetIdx], cv2.CV_32S)
+        (totalLabels, label_img, regionStats, regionCentroids) = analysis
+        datasets['num_regions'].append(regionStats.shape[0])
+        datasets['region_centroids'].append(regionCentroids)
+        datasets['analysis'].append(analysis)
 
     #
     # TODO: ARW
@@ -389,150 +395,195 @@ if __name__ == "__main__":
     #
     from sklearn.model_selection import train_test_split
 
-    if NUM_AUGMENTATIONS_PER_IMAGE > 0:
-        if SHOW_AUGMENTATION:
-            figure, handle = plt.subplots(nrows=1, ncols=2, figsize=(6, 4))
+    # generate the dictionary data structure
+    augmentation_data = []
+    for datasetIdx in range(num_datasets):
+        dataset_components = {'train': {}, 'test': {}, 'validate': {}}
+        augmentation_data.append(dataset_components)
+        for dataset_component in dataset_components:
+            dataset_attrs = {'indices': [], 'num_region_idxs': 0,
+                             'region_centroids': [], 'num_regions': 0,
+                             'data': [], 'labels': []}
+            dataset_components[dataset_component] = dataset_attrs
 
-        for datasetIdx in range(len(dataset_images)):
-            analysis = cv2.connectedComponentsWithStats(dataset_masks[datasetIdx], cv2.CV_32S)
-            (totalLabels, label_img, regionStats, regionCentroids) = analysis
-            numRegions = regionStats.shape[0];
+    for datasetIdx in range(num_datasets):
+        dataset_components = augmentation_data[datasetIdx]
+        datavectorIndices = list(range(0, datasets['num_regions'][datasetIdx]))
+        training_indices, testing_indices = train_test_split(datavectorIndices, test_size=pct_test, random_state=1)
+        training_indices, validation_indices = train_test_split(training_indices, test_size=pct_val, random_state=1)
+        dataset_components['train']['indices'] = training_indices
+        dataset_components['test']['indices'] = testing_indices
+        dataset_components['validate']['indices'] = validation_indices
+        dataset_components['train']['num_region_idxs'] = len(training_indices)
+        dataset_components['test']['num_region_idxs'] = len(testing_indices)
+        dataset_components['validate']['num_region_idxs'] = len(validation_indices)
 
-            datavectorIndices = list(range(0, numRegions))
-            training_indices, testing_indices = train_test_split(datavectorIndices, test_size=pct_test, random_state=1)
-
-            dataset_augmentations = []
-
-            region_centroids = []
-            for regionIdx in range(len(datavectorIndices)):
+    for datasetIdx in range(num_datasets):
+        dataset_components = augmentation_data[datasetIdx]
+        for component in dataset_components:
+            dataset = dataset_components[component]
+            regionCentroidArray = dataset['region_centroids']
+            for localRegionIndex in range(dataset['num_region_idxs']):
+                globalRegionIndex = dataset['indices'][localRegionIndex]
                 # if regionStats[training_indices[regionIdx]][2] == 40 and regionStats[training_indices[regionIdx]][3] == 40:
                 # if regionStats[training_indices[regionIdx]][2] * regionStats[training_indices[regionIdx]][3] > 900:
-                region_centroids.append(regionCentroids[regionIdx])
+                regionCentroidArray.append(datasets['region_centroids'][datasetIdx][globalRegionIndex])
+            dataset['num_regions'] = len(regionCentroidArray)
 
-            augmentation_data.append(dataset_augmentations)
-            numTrainingRegions = len(training_indices)
-            numTestingRegions = len(testing_indices)
-            for regionIdx in range(numTrainingRegions):
+    if SHOW_AUGMENTATION:
+        figure, handle = plt.subplots(nrows=1, ncols=2, figsize=(6, 4))
+
+    for datasetIdx in range(num_datasets):
+        dataset_components = augmentation_data[datasetIdx]
+        dataset_testRegionCentroidArray = dataset_components['test']['region_centroids']
+        dataset_numTestRegions = len(dataset_testRegionCentroidArray)
+        for dataset in dataset_components:
+            # dataset_attrs = augmentation_data[dataset]
+            dataArray = dataset_components[dataset]['data']
+            labelArray = dataset_components[dataset]['labels']
+            for regionIndex in range(dataset_components[dataset]['num_regions']):
                 for augmentationIdx in range(NUM_AUGMENTATIONS_PER_IMAGE):
-                    sample = {'data': [], 'labels': []}
                     angle = np.random.uniform(low=0, high=359.9)
-                    trainingIndex = training_indices[regionIdx]
-                    center_y, center_x = region_centroids[trainingIndex]
+                    center_y, center_x = dataset_components[dataset]['region_centroids'][regionIndex]
                     dx = np.random.uniform(low=-30, high=30)
                     dy = np.random.uniform(low=-30, high=30)
                     aug_image_center = np.array([center_x + dx, center_y + dy], dtype=np.float32)
+                    skip_this_image = False
+                    if dataset != 'test':
+                        for testRegionIdx in range(dataset_numTestRegions):
+                            aug_image_center_to_testRegion_vector = dataset_testRegionCentroidArray[testRegionIdx] - aug_image_center
+                            train_to_test_Distance = np.linalg.norm(aug_image_center_to_testRegion_vector)
+                            if train_to_test_Distance < 1.5 * IMAGE_SIZE * np.sqrt(2) + 21:
+                                print("Skip augmentation at image center (" + str(aug_image_center_to_testRegion_vector) +")"
+                                      " distance to test set = " + str(train_to_test_Distance))
+                                skip_this_image = True
+                                continue
 
-                    for testRegionIdx in range(numTestingRegions):
-                        testingIndex = testing_indices[testRegionIdx]
-                        aug_image_center_to_testRegion_vector = region_centroids[testingIndex] - aug_image_center;
-                        train_to_test_Distance = np.linalg.norm(aug_image_center_to_testRegion_vector)
-                        if train_to_test_Distance < 1.5 * IMAGE_SIZE * np.sqrt(2) + 21:
-                            print("Skip augmentation at image center (" + str(aug_image_center_to_testRegion_vector) +")"
-                                  " distance to test set = " + str(train_to_test_Distance))
-                            continue
-
-                    aug_image_patch = getRigidImagePatch(dataset_images[datasetIdx],
+                    if skip_this_image:
+                        continue
+                    aug_image_patch = getRigidImagePatch(datasets['data'][datasetIdx],
                                                          IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle)
-                    aug_mask_patch = getRigidImagePatch(dataset_masks[datasetIdx],
+                    aug_mask_patch = getRigidImagePatch(datasets['labels'][datasetIdx],
                                                         IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle)
 
-                    aug_image_patch = np.array(aug_image_patch, dtype=np.float32) / 255.0
-                    sample['data'].append(aug_image_patch)
-                    sample['labels'].append(aug_mask_patch)
-                    dataset_augmentations.append(sample)
-                    if aug_image_patch is not None and SHOW_AUGMENTATION:
-                        handle[0].imshow(aug_image_patch, cmap='gray')
-                        handle[1].imshow(aug_mask_patch, cmap='gray')
-                        plt.pause(0.5)
+                    if aug_image_patch is not None:
+                        aug_image_patch = np.array(aug_image_patch[:, :, 1], dtype=np.float32) / 255.0
+                        dataArray.append(aug_image_patch)
+                        labelArray.append(aug_mask_patch)
+                        if SHOW_AUGMENTATION:
+                            handle[0].imshow(aug_image_patch, cmap='gray')
+                            handle[1].imshow(aug_mask_patch, cmap='gray')
+                            plt.pause(0.5)
 
-    img1, mask1 = get_image_mask_patches(img_filename1, mask_filename1, img_size=IMAGE_SIZE, step=40)
-    print(len(img1))
-
-    img2, mask2 = get_image_mask_patches(img_filename2, mask_filename2, img_size=IMAGE_SIZE, step=40)
-    print(len(img2))
-
-    img3, mask3 = get_image_mask_patches(img_filename3, mask_filename3, img_size=IMAGE_SIZE, step=20)
-    print(len(img3))
+    # img1, mask1 = get_image_mask_patches(img_filename1, mask_filename1, img_size=IMAGE_SIZE, step=128)
+    # print(len(img1))
+    #
+    # img2, mask2 = get_image_mask_patches(img_filename2, mask_filename2, img_size=IMAGE_SIZE, step=128)
+    # print(len(img2))
+    #
+    # img3, mask3 = get_image_mask_patches(img_filename3, mask_filename3, img_size=IMAGE_SIZE, step=128)
+    # print(len(img3))
 
     data = []
-    numSamples = [img1.shape[0], img2.shape[0], img3.shape[0]]
-    imagesets = [img1, img2, img3]
-    labelsets = [mask1, mask2, mask3]
+    # numSamples = [img1.shape[0], img2.shape[0], img3.shape[0]]
+    # imagesets = [img1, img2, img3]
+    # labelsets = [mask1, mask2, mask3]
+    #
+    # for datasetIdx in range(len(imagesets)):
+    #     samples = []
+    #     for sampleIdx in range(numSamples[datasetIdx]):
+    #         sample = {}
+    #         sample['data'] = imagesets[datasetIdx][sampleIdx][:, :, 0]
+    #         sample['labels'] = labelsets[datasetIdx][sampleIdx][:, :, 0]
+    #         samples.append(sample)
+    #     data.append(samples)
 
-    for datasetIdx in range(len(imagesets)):
-        samples = []
-        for sampleIdx in range(numSamples[datasetIdx]):
-            sample = {}
-            sample['data'] = imagesets[datasetIdx][sampleIdx][:, :, 0]
-            sample['labels'] = labelsets[datasetIdx][sampleIdx][:, :, 0]
-            samples.append(sample)
-        data.append(samples)
+    # data.append(augmentation_data[0][0])
+    # data.append(augmentation_data[1][0])
+    # data.append(augmentation_data[2][0])
 
-    data.append(augmentation_data[0])
+    # from sklearn.model_selection import train_test_split
+    #
+    # training_data = []
+    # test_data = []
+    # validation_data = []
+    # for datasetIdx in range(len(data)):
+    #     train, test = train_test_split(data[datasetIdx], test_size=pct_test, random_state=1)
+    #     train, val = train_test_split(train, test_size=pct_val, random_state=1)
+    #     training_data.append(train)
+    #     test_data.append(test)
+    #     validation_data.append(val)
 
-    from sklearn.model_selection import train_test_split
+    # training_images = []
+    # training_labels = []
+    # for datasetIdx in range(len(data)):
+    #     for sampleIdx in range(len(training_data[datasetIdx])):
+    #         training_images.append(training_data[datasetIdx][sampleIdx]['data'])
+    #         training_labels.append(training_data[datasetIdx][sampleIdx]['labels'])
+    #
+    # val_images = []
+    # val_labels = []
+    # for datasetIdx in range(len(data)):
+    #     for sampleIdx in range(len(validation_data[datasetIdx])):
+    #         val_images.append(validation_data[datasetIdx][sampleIdx]['data'])
+    #         val_labels.append(validation_data[datasetIdx][sampleIdx]['labels'])
+    #
+    # test_images = []
+    # test_labels = []
+    # for datasetIdx in range(len(data)):
+    #     for sampleIdx in range(len(test_data[datasetIdx])):
+    #         test_images.append(test_data[datasetIdx][sampleIdx]['data'])
+    #         test_labels.append(test_data[datasetIdx][sampleIdx]['labels'])
 
-    training_data = []
-    test_data = []
-    validation_data = []
-    for datasetIdx in range(len(imagesets)):
-        train, test = train_test_split(data[datasetIdx], test_size=pct_test, random_state=1)
-        train, val = train_test_split(train, test_size=pct_val, random_state=1)
-        training_data.append(train)
-        test_data.append(test)
-        validation_data.append(val)
+    # train_img = np.array(training_images)
+    # train_mask = np.array(training_labels)
+    #
+    # val_img = np.array(val_images)
+    # val_mask = np.array(val_labels)
+    #
+    # test_img = np.array(test_images)
+    # test_mask = np.array(test_labels)
+    train_images = np.concatenate((augmentation_data[0]['train']['data'],
+                            augmentation_data[1]['train']['data'],
+                            augmentation_data[2]['train']['data']))
+    train_labels = np.concatenate((augmentation_data[0]['train']['labels'],
+                                  augmentation_data[1]['train']['labels'],
+                                   augmentation_data[2]['train']['labels']))
 
-    training_images = []
-    training_labels = []
-    for datasetIdx in range(len(imagesets)):
-        for sampleIdx in range(len(training_data[datasetIdx])):
-            training_images.append(training_data[datasetIdx][sampleIdx]['data'])
-            training_labels.append(training_data[datasetIdx][sampleIdx]['labels'])
+    validate_images = np.concatenate((augmentation_data[0]['validate']['data'],
+                            augmentation_data[1]['validate']['data'],
+                            augmentation_data[2]['validate']['data']))
+    validate_labels = np.concatenate((augmentation_data[0]['validate']['labels'],
+                                  augmentation_data[1]['validate']['labels'],
+                                   augmentation_data[2]['validate']['labels']))
 
-    val_images = []
-    val_labels = []
-    for datasetIdx in range(len(imagesets)):
-        for sampleIdx in range(len(validation_data[datasetIdx])):
-            val_images.append(validation_data[datasetIdx][sampleIdx]['data'])
-            val_labels.append(validation_data[datasetIdx][sampleIdx]['labels'])
+    test_images = np.concatenate((augmentation_data[0]['test']['data'],
+                            augmentation_data[1]['test']['data'],
+                            augmentation_data[2]['test']['data']))
+    test_labels = np.concatenate((augmentation_data[0]['test']['labels'],
+                                  augmentation_data[1]['test']['labels'],
+                                   augmentation_data[2]['test']['labels']))
+    print("Train " + str(train_images.shape[0]))
+    print("Validation " + str(validate_images.shape[0]))
+    print("Test " + str(test_images.shape[0]))
 
-    test_images = []
-    test_labels = []
-    for datasetIdx in range(len(imagesets)):
-        for sampleIdx in range(len(test_data[datasetIdx])):
-            test_images.append(test_data[datasetIdx][sampleIdx]['data'])
-            test_labels.append(test_data[datasetIdx][sampleIdx]['labels'])
-
-    train_img = np.array(training_images)
-    train_mask = np.array(training_labels)
-
-    val_img = np.array(val_images)
-    val_mask = np.array(val_labels)
-
-    test_img = np.array(test_images)
-    test_mask = np.array(test_labels)
-
-    print("Train " + str(train_img.shape[0]))
-    print("Validation " + str(val_img.shape[0]))
-    print("Test " + str(test_img.shape[0]))
-
-    get_sample_display_multiple_img(train_img, train_mask, n=5)
+    get_sample_display_multiple_img(train_images, train_labels, n=5)
 
     ###############################################
     # Encode labels... but multi dim array so need to flatten, encode and reshape
     from sklearn.preprocessing import LabelEncoder
 
     labelencoder = LabelEncoder()
-    n, h, w = train_mask[:, :, :].shape
-    train_masks_reshaped = train_mask[:, :, :].reshape(-1, 1)
+    n, h, w = train_labels[:, :, :].shape
+    train_masks_reshaped = train_labels[:, :, :].reshape(-1, 1)
     print(train_masks_reshaped.shape)
     train_masks_reshaped_encoded = labelencoder.fit_transform(train_masks_reshaped)
     train_masks_encoded_original_shape = train_masks_reshaped_encoded.reshape(n, h, w)
 
     print(np.unique(train_masks_encoded_original_shape))
 
-    n, h, w = val_mask[:, :, :].shape
-    val_masks_reshaped = val_mask[:, :, :].reshape(-1, 1)
+    n, h, w = validate_labels[:, :, :].shape
+    val_masks_reshaped = validate_labels[:, :, :].reshape(-1, 1)
     val_masks_reshaped_encoded = labelencoder.fit_transform(val_masks_reshaped)
     val_masks_encoded_original_shape = val_masks_reshaped_encoded.reshape(n, h, w)
     print(np.unique(val_masks_encoded_original_shape))
@@ -541,9 +592,9 @@ if __name__ == "__main__":
     val_masks_input = np.expand_dims(val_masks_encoded_original_shape, axis=3)
     print(train_masks_input.shape)
 
-    X_train = train_img
-    X_val = val_img
-    X_test = test_img
+    X_train = train_images
+    X_val = validate_images
+    X_test = test_images
 
     y_train = train_masks_input
     y_val = val_masks_input
@@ -585,9 +636,9 @@ if __name__ == "__main__":
     if not os.path.exists(save_results):
         os.makedirs(save_results)
 
-    to_pickle({'data': train_img, 'labels': train_mask}, home_folder + results_folder + trial_folder + training_filename)
-    to_pickle({'data': test_img, 'labels': test_mask}, home_folder + results_folder + trial_folder + testing_filename)
-    to_pickle({'data': val_img, 'labels': val_mask}, home_folder + results_folder + trial_folder + validation_filename)
+    to_pickle({'data': train_images, 'labels': train_labels}, home_folder + results_folder + trial_folder + training_filename)
+    to_pickle({'data': test_images, 'labels': test_labels}, home_folder + results_folder + trial_folder + testing_filename)
+    to_pickle({'data': validate_images, 'labels': validate_labels}, home_folder + results_folder + trial_folder + validation_filename)
 
     checkpoint = ModelCheckpoint(save_results, monitor="val_iou_score", verbose=1, save_best_only=True, mode="max")
     early_stopping = EarlyStopping(monitor="val_iou_score", patience=150, verbose=1, mode="max")
@@ -642,19 +693,19 @@ if __name__ == "__main__":
 
     n_classes = 2
     IOU_keras = MeanIoU(num_classes=n_classes)
-    val_mask = val_mask / 255.0
-    IOU_keras.update_state(val_mask, y_pred1_argmax)
+    # val_mask = validate_labels / 255.0
+    IOU_keras.update_state(validate_labels, y_pred1_argmax)
     print("Mean IoU on validation data =", IOU_keras.result().numpy())
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
     # test_img = X_val
-    ground_truth = test_mask / 255.0
+    # ground_truth = test_labels / 255.0
     test_pred1 = unet_model.predict(X_test)
     test_prediction1 = np.argmax(test_pred1, axis=3)
-    IOU_keras.update_state(ground_truth, test_prediction1)
+    IOU_keras.update_state(test_labels, test_prediction1)
     print("Mean IoU on test data =", IOU_keras.result().numpy())
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
-    display_multiple_img(X_test, ground_truth, test_prediction1, 'unet_plt_1', save_results, n=5)
+    display_multiple_img(X_test, test_labels, test_prediction1, 'unet_plt_1', save_results, n=5)
