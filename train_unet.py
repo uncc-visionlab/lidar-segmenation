@@ -1,12 +1,17 @@
 #!/usr/bin/env python
 # coding: utf-8
-
+import logging
 import warnings
+
+import keras
+import skimage
 
 warnings.filterwarnings('ignore')
 
 from tensorflow.keras.utils import normalize
 import os
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import cv2
 # from PIL import Image
 import numpy as np
@@ -40,8 +45,6 @@ from datetime import datetime
 # from focal_loss import BinaryFocalLoss
 from att_models import Attention_ResUNet, UNet, Attention_UNet, dice_coef, dice_coef_loss, jacard_coef
 
-
-# In[3]:
 
 
 def display_multiple_img(original, ground_truth, y_test_argmax, plt_name, save_results, n=5):
@@ -92,6 +95,7 @@ def getRigidImagePatch(img, height, width, center_y, center_x, angle):
     xy_end = np.array([xy_center_newimg[0] + width / 2, xy_center_newimg[1] + height / 2], dtype=np.int32);
     image_patch_aug = transformed_image_patch[xy_start[1]:xy_end[1], xy_start[0]:xy_end[0]]
     return image_patch_aug
+
 
 def display_learning_curves(history):
     result = history.history
@@ -231,8 +235,8 @@ def get_image_mask_patches(img_dir, mask_dir, img_size=128, step=20, th_area=2):
             # single_patch_mask = get_labels_from_mask(single_patch_mask)
             # area_thresh = get_area_covered(single_patch_mask, th_area)
             # if len(np.unique(single_patch_mask))>1 and area_thresh:
-            WINDOWSIZE=41;
-            if np.count_nonzero(single_patch_mask > 0.0) == WINDOWSIZE*WINDOWSIZE:
+            WINDOWSIZE = 41;
+            if np.count_nonzero(single_patch_mask > 0.0) == WINDOWSIZE * WINDOWSIZE:
                 # check =check_if_obj_border(single_patch_mask[:,:,0:1])
                 # if check!=True:
                 all_mask_patches.append(single_patch_mask[:, :, 0:1])
@@ -262,15 +266,59 @@ def get_sample_display_multiple_img(original, ground_truth, n=5):
     plt.tight_layout()
     plt.show()
 
-def to_pickle(thing, path): # save something
+
+def to_pickle(thing, path):  # save something
     with open(path, 'wb') as handle:
         pickle.dump(thing, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-def from_pickle(path): # load something
+
+def from_pickle(path):  # load something
     thing = None
     with open(path, 'rb') as handle:
         thing = pickle.load(handle)
     return thing
+
+
+# add sample images visualization to keras callbacks
+class SaveImage(keras.callbacks.Callback):
+    def __init__(self, train_images, val_images, generator, logdir):
+        super(SaveImage, self).__init__()
+        self.tr_images = train_images
+        self.val_images = val_images
+        self.g = generator
+        self.writer = tf.summary.create_file_writer((logdir + '/vis'))  # Creates writer element to write the data for Tensorboard
+
+    # Images will be generated after each epoch
+    def on_epoch_end(self, epoch, logs=None):
+        # Function to generate batch of images. Returns a list (l) with the 3-image display (input, generated, ground truth)
+        def generate_imgs(g, imgs):
+            l = []
+            for i in range(len(imgs)):
+                x = imgs[0][i]  # data
+                y = imgs[1][i]  # label
+                # Select only the first image of the batch -> None keeps the batch dimension so that the generator doesn't raise an exception
+                x = x[None, ...]
+                y = y[None, ...]
+                out = g(x)
+                out = np.argmax(out, axis=3)
+                out = out[..., None]
+
+                # Concatenate vertically input (x), output (out) and ground truth (y) to display the 3 images
+                cat_image = np.concatenate((x.squeeze(axis=0), out.squeeze(axis=0), y.squeeze(axis=0)), axis=1)  # np.squeeze deletes the batch dimension
+                #cat_image_uint8 = (cat_image * 255).astype('uint8')
+                l.append(cat_image)
+            return l
+
+        # Generate images for training and validation images
+        train_sample = generate_imgs(self.g, self.tr_images)
+        val_sample = generate_imgs(self.g, self.val_images)
+
+        # Write (store) the images within the writer element
+        with self.writer.as_default():
+            with tf.name_scope("train") as scope:  # tf.name_scope adds the prefix train/ to all the tf.summary.image names
+                tf.summary.image(step=epoch, data=train_sample, name=scope, max_outputs=len(train_sample))
+            with tf.name_scope("val") as scope:
+                tf.summary.image(step=epoch, data=val_sample, name=scope, max_outputs=len(val_sample))
 
 
 if __name__ == "__main__":
@@ -293,6 +341,7 @@ if __name__ == "__main__":
 
     home_folder = '/home/fjannat/Documents/EarthVision/data_resource/'
     home_folder = '/home/arwillis/PyCharm/'
+    home_folder = './'
     results_folder = 'results/'
     trial_folder = 'unet/trial'
     model_filename = '/as_unet.hdf5'
@@ -317,7 +366,6 @@ if __name__ == "__main__":
     img_filename3 = home_folder + gis_data_path[2] + gis_input_filenames[2]
     mask_filename3 = home_folder + gis_data_path[2] + gis_input_gt_filenames[2]
 
-
     image_1 = cv2.imread(img_filename1)
     mask_1 = cv2.imread(mask_filename1)[:, :, 0:1]
     image_2 = cv2.imread(img_filename2)
@@ -325,7 +373,7 @@ if __name__ == "__main__":
     image_3 = cv2.imread(img_filename3)
     mask_3 = cv2.imread(mask_filename3)[:, :, 0:1]
 
-    dataset_images =[image_1, image_2, image_3]
+    dataset_images = [image_1, image_2, image_3]
     dataset_masks = [mask_1, mask_2, mask_3]
 
     # Apply the Component analysis function
@@ -410,21 +458,21 @@ if __name__ == "__main__":
 
     training_images = []
     training_labels = []
-    for datasetIdx in range(3):
+    for datasetIdx in range(len(imagesets)):
         for sampleIdx in range(len(training_data[datasetIdx])):
             training_images.append(training_data[datasetIdx][sampleIdx]['data'])
             training_labels.append(training_data[datasetIdx][sampleIdx]['labels'])
 
     val_images = []
     val_labels = []
-    for datasetIdx in range(3):
+    for datasetIdx in range(len(imagesets)):
         for sampleIdx in range(len(validation_data[datasetIdx])):
             val_images.append(validation_data[datasetIdx][sampleIdx]['data'])
             val_labels.append(validation_data[datasetIdx][sampleIdx]['labels'])
 
     test_images = []
     test_labels = []
-    for datasetIdx in range(3):
+    for datasetIdx in range(len(imagesets)):
         for sampleIdx in range(len(test_data[datasetIdx])):
             test_images.append(test_data[datasetIdx][sampleIdx]['data'])
             test_labels.append(test_data[datasetIdx][sampleIdx]['labels'])
@@ -529,6 +577,17 @@ if __name__ == "__main__":
                        metrics=metrics)
 
     # print(unet_model.summary())
+    log_dir = "logs/fit/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, write_graph=False, write_images=False,
+                                                          write_steps_per_second=True)
+
+    # Initialize the SaveImage class by passing the arguments to the __init__() function
+    save_image_call = SaveImage(
+        (X_train.take([0, 10], axis=0), y_train.take([0, 10], axis=0)),  # SaveImage will only evaluate 4 images from training and validation sets
+        (X_val.take([0, 10], axis=0), y_val.take([0, 10], axis=0)),
+        unet_model,  # generator
+        log_dir
+    )
 
     start1 = datetime.now()
     unet_history = unet_model.fit(X_train, y_train_cat,
@@ -537,7 +596,7 @@ if __name__ == "__main__":
                                   validation_data=(X_val, y_val_cat),
                                   shuffle=True,
                                   epochs=NUM_EPOCHS,
-                                  callbacks=callbacks_list)
+                                  callbacks=[save_image_call, tensorboard_callback])
 
     stop1 = datetime.now()
     # Execution time of the model
@@ -549,7 +608,7 @@ if __name__ == "__main__":
     # loss, acc = unet_model.evaluate(X_test)
     # print("Accuracy", acc)
 
-    display_learning_curves(unet_history)
+    # display_learning_curves(unet_history)
 
     unet_model.load_weights(save_results)
     y_pred1 = unet_model.predict(X_val)
