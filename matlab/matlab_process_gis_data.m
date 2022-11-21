@@ -15,8 +15,10 @@ IGNORE_POLYGONS = true;
 
 region(1).Name = 'Annular structure';
 region(1).WINDOWSIZE = 40;
+region(1).Color = [1 .8 .8]; % light red
 region(2).Name = 'Platform';
 region(2).WINDOWSIZE = 80;
+region(2).Color = [.67 .84 .9]; % light blue
 
 %for datasetIdx=1:NUMDATASETS
 %    DATASETINDEX=datasetIdx;
@@ -103,7 +105,8 @@ for shapefileIndex=1:length(gis_esri_shapefilenames)
         end
         
         figure(1), hold on, drawpolygon('Position',my_vertices,'MarkerSize',1, ...
-            'LineWidth',1,'FaceAlpha', 1, 'Color',[1 0 0],'SelectedColor','red');
+            'LineWidth',1,'FaceAlpha', 1, 'Color', region(shapefileIndex).Color, ...,
+            'SelectedColor', region(shapefileIndex).Color);
         
         if (PLOT_REGION_MESH)
             PLOT_MARGIN = 0;
