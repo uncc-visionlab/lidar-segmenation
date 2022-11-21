@@ -136,7 +136,7 @@ for shapefileIndex=1:length(gis_esri_shapefilenames)
         
     end
 end
-
+image_geo_ground_truth = uint8(image_geo_ground_truth);
 %colorized_label_image = label2rgb(image_geo_ground_truth);
 %figure(3), imshow(colorized_label_image,[]);
 segmentation_image = labeloverlay(image_geo_output, image_geo_ground_truth);
