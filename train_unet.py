@@ -1,51 +1,28 @@
 #!/usr/bin/env python
 # coding: utf-8
-import logging
 import warnings
-
 import keras
-import skimage
 
 warnings.filterwarnings('ignore')
 
-from tensorflow.keras.utils import normalize
 import os
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 import cv2
-# from PIL import Image
 import numpy as np
 from matplotlib import pyplot as plt
 from patchify import patchify, unpatchify
 import pickle
-# import tifffile as tiff
-# from sklearn.preprocessing import MinMaxScaler
-# from tensorflow.keras.optimizers import Adam
 import random
 import tensorflow as tf
 from keras.metrics import MeanIoU
-# import segmentation_models as sm
 from keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger
 
-# from keras.layers import Input
-# from keras.models import Model
-# from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate, Conv2DTranspose, BatchNormalization, Dropout, Lambda
-
 import segmentation_models as sm
-
-# import albumentations as A
-
 from tensorflow.keras.optimizers import Adam
-
 from datetime import datetime
-
-# from PIL import Image
-# from keras import backend, optimizers
-
-# from focal_loss import BinaryFocalLoss
 from att_models import Attention_ResUNet, UNet, Attention_UNet, dice_coef, dice_coef_loss, jacard_coef
-
-
 
 def display_multiple_img(original, ground_truth, y_test_argmax, plt_name, save_results, n=5):
     figure, ax = plt.subplots(nrows=n, ncols=3, figsize=(12, n * 2))
@@ -323,8 +300,8 @@ class SaveImage(keras.callbacks.Callback):
 
 if __name__ == "__main__":
 
-    BATCH_SIZE = 60
-    NUM_EPOCHS = 300
+    BATCH_SIZE = 100
+    NUM_EPOCHS = 150
     IMAGE_SIZE = 128
 
     # Image augmentation settings
@@ -378,6 +355,8 @@ if __name__ == "__main__":
     datasets['labels'] = [mask_1, mask_2, mask_3]
     num_datasets = len(datasets['data'])
 
+    # for each dataset compute the connected components to recover the labeled regions of image data
+    # store the result of the connected component analysis
     for datasetIdx in range(num_datasets):
         analysis = cv2.connectedComponentsWithStats(datasets['labels'][datasetIdx], cv2.CV_32S)
         (totalLabels, label_img, regionStats, regionCentroids) = analysis
@@ -385,18 +364,14 @@ if __name__ == "__main__":
         datasets['region_centroids'].append(regionCentroids)
         datasets['analysis'].append(analysis)
 
-    #
-    # TODO: ARW
-    # Should select region indices for training, testing and validation then perform augmentation on the indices
-    # separately so the data can be added to the correct dataset.
-    #
-    # Additional code needs to be written to exclude regions from the training set that include elements of the
-    # test set within their images.
-    #
-    from sklearn.model_selection import train_test_split
-
-    # generate the dictionary data structure
+    # this will store all of our data for all datasets and their components which consist of the data split into
+    # training, validation and testing sets
     augmentation_data = []
+
+    # for each dataset setup a dictionary data structure to create test, train and validate components of the dataset
+    # each component will have a list of indices indicating the index of regions/segmented parts of the original image
+    # that will be used in each of the dataset components. Subsequent code will populate the 'region centroids',
+    # image data ('data'), and label data ('labels') within this datastructure for training.
     for datasetIdx in range(num_datasets):
         dataset_components = {'train': {}, 'test': {}, 'validate': {}}
         augmentation_data.append(dataset_components)
@@ -406,6 +381,9 @@ if __name__ == "__main__":
                              'data': [], 'labels': []}
             dataset_components[dataset_component] = dataset_attrs
 
+    # for each dataset select the regions/data vectors to put into the training, validation and testing sets
+    # by storing the indices of these regions and the number of indices/regions within each of these sets
+    from sklearn.model_selection import train_test_split
     for datasetIdx in range(num_datasets):
         dataset_components = augmentation_data[datasetIdx]
         datavectorIndices = list(range(0, datasets['num_regions'][datasetIdx]))
@@ -418,6 +396,8 @@ if __name__ == "__main__":
         dataset_components['test']['num_region_idxs'] = len(testing_indices)
         dataset_components['validate']['num_region_idxs'] = len(validation_indices)
 
+    # for each dataset visit the training, validation and testing sets and set the region centroids for all the regions
+    # that are associated with each of these sets
     for datasetIdx in range(num_datasets):
         dataset_components = augmentation_data[datasetIdx]
         for component in dataset_components:
@@ -425,9 +405,11 @@ if __name__ == "__main__":
             regionCentroidArray = dataset['region_centroids']
             for localRegionIndex in range(dataset['num_region_idxs']):
                 globalRegionIndex = dataset['indices'][localRegionIndex]
-                # if regionStats[training_indices[regionIdx]][2] == 40 and regionStats[training_indices[regionIdx]][3] == 40:
-                # if regionStats[training_indices[regionIdx]][2] * regionStats[training_indices[regionIdx]][3] > 900:
-                regionCentroidArray.append(datasets['region_centroids'][datasetIdx][globalRegionIndex])
+                (totalLabels, label_img, regionStats, regionCentroids) = datasets['analysis'][datasetIdx]
+                # ensure that the connected component corresponds to a specific size/area region
+                if regionStats[globalRegionIndex][2] == 40 and regionStats[globalRegionIndex][3] == 40:
+                    # if regionStats[globalRegionIndex][2] * regionStats[globalRegionIndex][3] > 900:
+                    regionCentroidArray.append(datasets['region_centroids'][datasetIdx][globalRegionIndex])
             dataset['num_regions'] = len(regionCentroidArray)
 
     if SHOW_AUGMENTATION:
@@ -438,17 +420,20 @@ if __name__ == "__main__":
         dataset_testRegionCentroidArray = dataset_components['test']['region_centroids']
         dataset_numTestRegions = len(dataset_testRegionCentroidArray)
         for dataset in dataset_components:
-            # dataset_attrs = augmentation_data[dataset]
             dataArray = dataset_components[dataset]['data']
             labelArray = dataset_components[dataset]['labels']
             for regionIndex in range(dataset_components[dataset]['num_regions']):
                 for augmentationIdx in range(NUM_AUGMENTATIONS_PER_IMAGE):
+                    # randomly perturb the orientation
                     angle = np.random.uniform(low=0, high=359.9)
                     center_y, center_x = dataset_components[dataset]['region_centroids'][regionIndex]
+                    # randomly perturb the offset of the region within the tile
                     dx = np.random.uniform(low=-30, high=30)
                     dy = np.random.uniform(low=-30, high=30)
                     aug_image_center = np.array([center_x + dx, center_y + dy], dtype=np.float32)
                     skip_this_image = False
+
+                    # do not test for proximity when augmenting the testing dataset
                     if dataset != 'test':
                         for testRegionIdx in range(dataset_numTestRegions):
                             aug_image_center_to_testRegion_vector = dataset_testRegionCentroidArray[testRegionIdx] - aug_image_center
@@ -459,13 +444,18 @@ if __name__ == "__main__":
                                 skip_this_image = True
                                 continue
 
+                    # if the augmentation may include data from the test set skip this augmentation
+                    # this may occur when labels of the test set are in the vicinity of labels from the training or
+                    # validation set
                     if skip_this_image:
                         continue
+
                     aug_image_patch = getRigidImagePatch(datasets['data'][datasetIdx],
                                                          IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle)
                     aug_mask_patch = getRigidImagePatch(datasets['labels'][datasetIdx],
                                                         IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle)
 
+                    # if the augmentation was successful add it to the image augmentation dataset
                     if aug_image_patch is not None:
                         aug_image_patch = np.array(aug_image_patch[:, :, 1], dtype=np.float32) / 255.0
                         dataArray.append(aug_image_patch)
@@ -475,155 +465,62 @@ if __name__ == "__main__":
                             handle[1].imshow(aug_mask_patch, cmap='gray')
                             plt.pause(0.5)
 
-    # img1, mask1 = get_image_mask_patches(img_filename1, mask_filename1, img_size=IMAGE_SIZE, step=128)
-    # print(len(img1))
-    #
-    # img2, mask2 = get_image_mask_patches(img_filename2, mask_filename2, img_size=IMAGE_SIZE, step=128)
-    # print(len(img2))
-    #
-    # img3, mask3 = get_image_mask_patches(img_filename3, mask_filename3, img_size=IMAGE_SIZE, step=128)
-    # print(len(img3))
-
-    data = []
-    # numSamples = [img1.shape[0], img2.shape[0], img3.shape[0]]
-    # imagesets = [img1, img2, img3]
-    # labelsets = [mask1, mask2, mask3]
-    #
-    # for datasetIdx in range(len(imagesets)):
-    #     samples = []
-    #     for sampleIdx in range(numSamples[datasetIdx]):
-    #         sample = {}
-    #         sample['data'] = imagesets[datasetIdx][sampleIdx][:, :, 0]
-    #         sample['labels'] = labelsets[datasetIdx][sampleIdx][:, :, 0]
-    #         samples.append(sample)
-    #     data.append(samples)
-
-    # data.append(augmentation_data[0][0])
-    # data.append(augmentation_data[1][0])
-    # data.append(augmentation_data[2][0])
-
-    # from sklearn.model_selection import train_test_split
-    #
-    # training_data = []
-    # test_data = []
-    # validation_data = []
-    # for datasetIdx in range(len(data)):
-    #     train, test = train_test_split(data[datasetIdx], test_size=pct_test, random_state=1)
-    #     train, val = train_test_split(train, test_size=pct_val, random_state=1)
-    #     training_data.append(train)
-    #     test_data.append(test)
-    #     validation_data.append(val)
-
-    # training_images = []
-    # training_labels = []
-    # for datasetIdx in range(len(data)):
-    #     for sampleIdx in range(len(training_data[datasetIdx])):
-    #         training_images.append(training_data[datasetIdx][sampleIdx]['data'])
-    #         training_labels.append(training_data[datasetIdx][sampleIdx]['labels'])
-    #
-    # val_images = []
-    # val_labels = []
-    # for datasetIdx in range(len(data)):
-    #     for sampleIdx in range(len(validation_data[datasetIdx])):
-    #         val_images.append(validation_data[datasetIdx][sampleIdx]['data'])
-    #         val_labels.append(validation_data[datasetIdx][sampleIdx]['labels'])
-    #
-    # test_images = []
-    # test_labels = []
-    # for datasetIdx in range(len(data)):
-    #     for sampleIdx in range(len(test_data[datasetIdx])):
-    #         test_images.append(test_data[datasetIdx][sampleIdx]['data'])
-    #         test_labels.append(test_data[datasetIdx][sampleIdx]['labels'])
-
-    # train_img = np.array(training_images)
-    # train_mask = np.array(training_labels)
-    #
-    # val_img = np.array(val_images)
-    # val_mask = np.array(val_labels)
-    #
-    # test_img = np.array(test_images)
-    # test_mask = np.array(test_labels)
+    # form the training, testing and validation datasets from available labeled image data
     train_images = np.concatenate((augmentation_data[0]['train']['data'],
-                            augmentation_data[1]['train']['data'],
-                            augmentation_data[2]['train']['data']))
+                                   augmentation_data[1]['train']['data'],
+                                   augmentation_data[2]['train']['data']))
     train_labels = np.concatenate((augmentation_data[0]['train']['labels'],
-                                  augmentation_data[1]['train']['labels'],
+                                   augmentation_data[1]['train']['labels'],
                                    augmentation_data[2]['train']['labels']))
 
     validate_images = np.concatenate((augmentation_data[0]['validate']['data'],
-                            augmentation_data[1]['validate']['data'],
-                            augmentation_data[2]['validate']['data']))
+                                      augmentation_data[1]['validate']['data'],
+                                      augmentation_data[2]['validate']['data']))
     validate_labels = np.concatenate((augmentation_data[0]['validate']['labels'],
-                                  augmentation_data[1]['validate']['labels'],
-                                   augmentation_data[2]['validate']['labels']))
+                                      augmentation_data[1]['validate']['labels'],
+                                      augmentation_data[2]['validate']['labels']))
 
     test_images = np.concatenate((augmentation_data[0]['test']['data'],
-                            augmentation_data[1]['test']['data'],
-                            augmentation_data[2]['test']['data']))
+                                  augmentation_data[1]['test']['data'],
+                                  augmentation_data[2]['test']['data']))
     test_labels = np.concatenate((augmentation_data[0]['test']['labels'],
                                   augmentation_data[1]['test']['labels'],
-                                   augmentation_data[2]['test']['labels']))
+                                  augmentation_data[2]['test']['labels']))
+
+    # print out the number of training vectors, validation vectors, and test vectors
     print("Train " + str(train_images.shape[0]))
     print("Validation " + str(validate_images.shape[0]))
     print("Test " + str(test_images.shape[0]))
 
+    # show a collection of images from the training set
     get_sample_display_multiple_img(train_images, train_labels, n=5)
 
-    ###############################################
-    # Encode labels... but multi dim array so need to flatten, encode and reshape
-    from sklearn.preprocessing import LabelEncoder
-
-    labelencoder = LabelEncoder()
-    n, h, w = train_labels[:, :, :].shape
-    train_masks_reshaped = train_labels[:, :, :].reshape(-1, 1)
-    print(train_masks_reshaped.shape)
-    train_masks_reshaped_encoded = labelencoder.fit_transform(train_masks_reshaped)
-    train_masks_encoded_original_shape = train_masks_reshaped_encoded.reshape(n, h, w)
-
-    print(np.unique(train_masks_encoded_original_shape))
-
-    n, h, w = validate_labels[:, :, :].shape
-    val_masks_reshaped = validate_labels[:, :, :].reshape(-1, 1)
-    val_masks_reshaped_encoded = labelencoder.fit_transform(val_masks_reshaped)
-    val_masks_encoded_original_shape = val_masks_reshaped_encoded.reshape(n, h, w)
-    print(np.unique(val_masks_encoded_original_shape))
-
-    train_masks_input = np.expand_dims(train_masks_encoded_original_shape, axis=3)
-    val_masks_input = np.expand_dims(val_masks_encoded_original_shape, axis=3)
-    print(train_masks_input.shape)
-
+    # setup input and output images for the neural net
     X_train = train_images
-    X_val = validate_images
+    X_validate = validate_images
     X_test = test_images
 
-    y_train = train_masks_input
-    y_val = val_masks_input
-    print("Class values in the dataset are ... ", np.unique(y_train))  # 0 is the background/few unlabeled
+    Y_train = train_labels
+    Y_validate = validate_labels
+    Y_test = test_labels
+    print("Class values in the dataset are ... ", np.unique(Y_train))  # 0 is the background/few unlabeled
 
+    # add component/channel dimension to data and label images
+    X_train = np.expand_dims(X_train, axis=3)
+    X_validate = np.expand_dims(X_validate, axis=3)
+    Y_train = np.expand_dims(Y_train, axis=3)
+    Y_validate = np.expand_dims(Y_validate, axis=3)
+
+    # convert label images to categorical format for training
     from tensorflow.keras.utils import to_categorical
+    n_classes = len(np.unique(Y_train))
+    Y_train_cat = to_categorical(Y_train, num_classes=n_classes)
+    Y_validate_cat = to_categorical(Y_validate, num_classes=n_classes)
 
-    n_classes = 2
-
-    train_masks_cat = to_categorical(y_train, num_classes=n_classes)
-    y_train_cat = train_masks_cat.reshape((y_train.shape[0], y_train.shape[1], y_train.shape[2], n_classes))
-
-    val_masks_cat = to_categorical(y_val, num_classes=n_classes)
-    y_val_cat = val_masks_cat.reshape((y_val.shape[0], y_val.shape[1], y_val.shape[2], n_classes))
-
-    X_train = np.expand_dims(X_train[:, :, :], axis=3)
-    X_val = np.expand_dims(X_val[:, :, :], axis=3)
-
-    #######################################
-    # Parameters for model
-
-    # IMG_HEIGHT = X_train.shape[1]
-    # IMG_WIDTH = X_train.shape[2]
+    # Set input layer dimensions
     IMG_CHANNELS = X_train.shape[3]
     input_shape = (IMAGE_SIZE, IMAGE_SIZE, IMG_CHANNELS)
-    input_shape
-
     sm.set_framework('tf.keras')
-
     sm.framework()
 
     dice_loss = sm.losses.DiceLoss(class_weights=np.array([.5, .5]))
@@ -650,27 +547,30 @@ if __name__ == "__main__":
     UNet
     """
     unet_model = UNet(input_shape, NUM_CLASSES=2)
-    unet_model.compile(optimizer=Adam(lr=1e-2), loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=.1),
+    unet_model.compile(optimizer=Adam(lr=1e-2),
+                       loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=.1),
                        metrics=metrics)
 
     # print(unet_model.summary())
     log_dir = "logs/fit/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, write_graph=False, write_images=False,
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, write_graph=False,
+                                                          write_images=False,
                                                           write_steps_per_second=True)
 
     # Initialize the SaveImage class by passing the arguments to the __init__() function
     save_image_call = SaveImage(
-        (X_train.take([0, 10], axis=0), y_train.take([0, 10], axis=0)),  # SaveImage will only evaluate 4 images from training and validation sets
-        (X_val.take([0, 10], axis=0), y_val.take([0, 10], axis=0)),
+        # SaveImage will only evaluate 4 images from training and validation sets
+        (X_train.take([0, 10], axis=0), Y_train.take([0, 10], axis=0)),
+        (X_validate.take([0, 10], axis=0), Y_validate.take([0, 10], axis=0)),
         unet_model,  # generator
-        log_dir
-    )
+        log_dir)
 
     start1 = datetime.now()
-    unet_history = unet_model.fit(X_train, y_train_cat,
+    unet_history = unet_model.fit(X_train,
+                                  Y_train_cat,
                                   verbose=1,
                                   batch_size=BATCH_SIZE,
-                                  validation_data=(X_val, y_val_cat),
+                                  validation_data=(X_validate, Y_validate_cat),
                                   shuffle=True,
                                   epochs=NUM_EPOCHS,
                                   callbacks=[save_image_call, tensorboard_callback])
@@ -685,27 +585,25 @@ if __name__ == "__main__":
     # loss, acc = unet_model.evaluate(X_test)
     # print("Accuracy", acc)
 
-    # display_learning_curves(unet_history)
-
     unet_model.load_weights(save_results)
-    y_pred1 = unet_model.predict(X_val)
-    y_pred1_argmax = np.argmax(y_pred1, axis=3)
+    Y_validate_predicted = unet_model.predict(X_validate)
+    Y_validate_predicted_argmax = np.argmax(Y_validate_predicted, axis=3)
 
     n_classes = 2
     IOU_keras = MeanIoU(num_classes=n_classes)
     # val_mask = validate_labels / 255.0
-    IOU_keras.update_state(validate_labels, y_pred1_argmax)
+    IOU_keras.update_state(validate_labels, Y_validate_predicted_argmax)
     print("Mean IoU on validation data =", IOU_keras.result().numpy())
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
     # test_img = X_val
     # ground_truth = test_labels / 255.0
-    test_pred1 = unet_model.predict(X_test)
-    test_prediction1 = np.argmax(test_pred1, axis=3)
-    IOU_keras.update_state(test_labels, test_prediction1)
+    Y_test_predicted = unet_model.predict(X_test)
+    Y_test_predicted_argmax = np.argmax(Y_test_predicted, axis=3)
+    IOU_keras.update_state(test_labels, Y_test_predicted_argmax)
     print("Mean IoU on test data =", IOU_keras.result().numpy())
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
-    display_multiple_img(X_test, test_labels, test_prediction1, 'unet_plt_1', save_results, n=5)
+    display_multiple_img(X_test, test_labels, Y_test_predicted_argmax, 'unet_plt_1', save_results, n=5)

@@ -64,9 +64,9 @@ if __name__ == "__main__":
 
     # Encode labels... but multi dim array so need to flatten, encode and reshape
     # from sklearn.preprocessing import LabelEncoder
-    train_mask = training_data['labels']
-    val_mask = validation_data['labels']
-    test_mask = testing_data['labels']
+    train_labels = training_data['labels']
+    validate_labels = validation_data['labels']
+    test_labels = testing_data['labels']
 
     # labelencoder = LabelEncoder()
     # n, h, w = train_mask[:, :, :].shape
@@ -87,33 +87,36 @@ if __name__ == "__main__":
     # print(train_masks_input.shape)
 
     X_train = training_data['data']
-    X_val = validation_data['data']
+    X_validate = validation_data['data']
     X_test = testing_data['data']
     X_train = np.expand_dims(X_train[:, :, :], axis=3)
-    X_val = np.expand_dims(X_val[:, :, :], axis=3)
+    X_validate = np.expand_dims(X_validate[:, :, :], axis=3)
+    X_test = np.expand_dims(X_test[:, :, :], axis=3)
 
     # Set compile=False as we are not loading it for training, only for prediction.
     unet_model = load_model(home_folder+results_folder+trial_folder+model_filename, compile=False)
 
-    # unet_model.load_weights(save_results)
-    y_pred1 = unet_model.predict(X_val)
-    y_pred1_argmax = np.argmax(y_pred1, axis=3)
+    unet_model.load_weights(save_results)
+    Y_validate_predicted = unet_model.predict(X_validate)
+    Y_validate_predicted_argmax = np.argmax(Y_validate_predicted, axis=3)
 
     n_classes = 2
     IOU_keras = MeanIoU(num_classes=n_classes)
-    val_mask = val_mask / 255.0
-    IOU_keras.update_state(val_mask, y_pred1_argmax)
+    # val_mask = validate_labels / 255.0
+    IOU_keras.update_state(validate_labels, Y_validate_predicted_argmax)
     print("Mean IoU on validation data =", IOU_keras.result().numpy())
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
+    display_multiple_img(X_validate, validate_labels, Y_validate_predicted_argmax, 'validation data', save_results, n=5)
+
     # test_img = X_val
-    ground_truth = test_mask[:, :, :] / 255.0
-    test_pred1 = unet_model.predict(X_test)
-    test_prediction1 = np.argmax(test_pred1, axis=3)
-    IOU_keras.update_state(ground_truth, test_prediction1)
+    # ground_truth = test_labels / 255.0
+    Y_test_predicted = unet_model.predict(X_test)
+    Y_test_predicted_argmax = np.argmax(Y_test_predicted, axis=3)
+    IOU_keras.update_state(test_labels, Y_test_predicted_argmax)
     print("Mean IoU on test data =", IOU_keras.result().numpy())
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
-    display_multiple_img(X_test, ground_truth, test_prediction1, 'unet_plt_1', save_results, n=5)
+    display_multiple_img(X_test, test_labels, Y_test_predicted_argmax, 'test data', save_results, n=5)
