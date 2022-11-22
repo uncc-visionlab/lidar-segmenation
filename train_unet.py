@@ -301,7 +301,7 @@ class SaveImage(keras.callbacks.Callback):
 if __name__ == "__main__":
 
     BATCH_SIZE = 100
-    NUM_EPOCHS = 150
+    NUM_EPOCHS = 500
     IMAGE_SIZE = 128
 
     # Image augmentation settings
@@ -566,12 +566,16 @@ if __name__ == "__main__":
         log_dir)
 
     start1 = datetime.now()
+    VALIDATION_BATCH_SIZE = 32
+    validation_steps = X_validate.shape[0] / VALIDATION_BATCH_SIZE
     unet_history = unet_model.fit(X_train,
                                   Y_train_cat,
                                   verbose=1,
                                   batch_size=BATCH_SIZE,
-                                  validation_data=(X_validate, Y_validate_cat),
                                   shuffle=True,
+                                  validation_data=(X_validate, Y_validate_cat),
+                                  validation_steps=validation_steps,
+                                  validation_batch_size=VALIDATION_BATCH_SIZE,
                                   epochs=NUM_EPOCHS,
                                   callbacks=[save_image_call, tensorboard_callback])
 
@@ -591,14 +595,11 @@ if __name__ == "__main__":
 
     n_classes = 2
     IOU_keras = MeanIoU(num_classes=n_classes)
-    # val_mask = validate_labels / 255.0
     IOU_keras.update_state(validate_labels, Y_validate_predicted_argmax)
     print("Mean IoU on validation data =", IOU_keras.result().numpy())
     values = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
     print(values)
 
-    # test_img = X_val
-    # ground_truth = test_labels / 255.0
     Y_test_predicted = unet_model.predict(X_test)
     Y_test_predicted_argmax = np.argmax(Y_test_predicted, axis=3)
     IOU_keras.update_state(test_labels, Y_test_predicted_argmax)
