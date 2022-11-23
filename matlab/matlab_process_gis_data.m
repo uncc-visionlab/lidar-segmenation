@@ -16,9 +16,23 @@ MAX_INTENSITY = 255;
 %
 % Interactions
 %
-INTERACTIVE_ANNULAR_REGION_SPECIFICATION = false;
+INTERACTIVE_ANNULAR_REGION_SPECIFICATION = true;
 INTERACTIVE_PLATFORM_REGION_SPECIFICATION = true;
-INTERACTION_LABEL_INDICES = 10:1000;
+INTERACTION_LABEL_INDICES = 1:1000;
+
+% Delete some labels from a file
+DO_DELETE = false;
+if (DO_DELETE)
+    DELETE_LABEL_INDICES = [28,29];
+    load('ground_truth_annular_structure_labels_kom.mat')
+    for idx=1:length(DELETE_LABEL_INDICES)
+        labelInfo{DELETE_LABEL_INDICES(idx)}=[];
+        fprintf(1,'Deleted labels %d from %s\n',DELETE_LABEL_INDICES(idx), ...
+            'ground_truth_annular_structure_labels_kom.mat');
+    end
+    save('ground_truth_annular_structure_labels_kom.mat','labelInfo')
+    return
+end
 
 uiDoneFlag = false;
 
@@ -31,9 +45,10 @@ region(2).WINDOWSIZE = 80;
 region(2).Color = [.67 .84 .9]; % light blue
 region(2).LabelValue = 2;
 
-NUMDATASETS = 1;
+NUMDATASETS = 3;
 
-for datasetIdx=NUMDATASETS:NUMDATASETS
+%for datasetIdx=NUMDATASETS:NUMDATASETS
+for datasetIdx=1:NUMDATASETS
     DATASETINDEX=datasetIdx;
     hold off;
     close all;
@@ -48,7 +63,9 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
             gis_output_hillshade_filename = 'KOM/raw/kom_dsm_lidar_hs.png';
             gis_output_gt_filename = 'KOM/raw/kom_dsm_lidar_gt.png';
             gt_labels_annular_filename = 'ground_truth_annular_structure_labels_kom.mat';
+            gt_labels_annular_filename_json = 'ground_truth_annular_structure_labels_kom.json';
             gt_labels_platform_filename = 'ground_truth_platform_labels_kom.mat';            
+            gt_labels_platform_filename_json = 'ground_truth_platform_labels_kom.json';            
         case 2
             gis_geotiff_filename = 'MLS/raw/MLS_DEM.tif';
             gis_esri_shapefilenames = {'MLS/raw/MLS_Annular_strs.shp'};
@@ -56,7 +73,9 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
             gis_output_hillshade_filename = 'MLS/raw/MLS_DEM_hs.png';
             gis_output_gt_filename = 'MLS/raw/MLS_DEM_gt.png';
             gt_labels_annular_filename = 'ground_truth_annular_structure_labels_mls.mat';
+            gt_labels_annular_filename_json = 'ground_truth_annular_structure_labels_mls.json';
             gt_labels_platform_filename = 'ground_truth_platform_labels_mls.mat';            
+            gt_labels_platform_filename_json = 'ground_truth_platform_labels_mls.json';            
             
         case 3
             gis_geotiff_filename = 'UCB/raw/UCB_elev_adjusted.tif';
@@ -65,7 +84,9 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
             gis_output_hillshade_filename = 'UCB/raw/UCB_elev_adjusted_hs.png';
             gis_output_gt_filename = 'UCB/raw/UCB_elev_adjusted_gt.png';
             gt_labels_annular_filename = 'ground_truth_annular_structure_labels_ucb.mat';
+            gt_labels_annular_filename_json = 'ground_truth_annular_structure_labels_ucb.json';
             gt_labels_platform_filename = 'ground_truth_platform_labels_ucb.mat';            
+            gt_labels_platform_filename_json = 'ground_truth_platform_labels_ucb.json';            
             
         otherwise
             printf(1,"Error\n");
@@ -118,20 +139,21 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
         shp_range_y = shapefile_structure(1).BoundingBox(2,2) - shapefile_structure(1).BoundingBox(1,2);
         
         WINDOWSIZE = region(shapefileIndex).WINDOWSIZE;
-        
+
+        clear labelInfo;
         if (shapefileIndex == 1 && INTERACTIVE_ANNULAR_REGION_SPECIFICATION)
-            strVal = sprintf('You will need to provide ellipse-shaped object regions for each annular structure in this dataset.');
-            message = {strVal ...
-                'Draw an ellipse that encompasses the annular structure region then' ...
-                'press ESC after each region is specified to move to the next region'};
-            waitfor(msgbox(message, 'Select Training Data','help'))
+            % strVal = sprintf('You will need to provide ellipse-shaped object regions for each annular structure in this dataset.');
+            % message = {strVal ...
+            % 'Draw an ellipse that encompasses the annular structure region then' ...
+            % 'press ESC after each region is specified to move to the next region'};
+            % waitfor(msgbox(message, 'Select Training Data','help'))
             if isfile(gt_labels_annular_filename)
                 load(gt_labels_annular_filename);
             end
             if (exist('labelInfo','var') == 0) 
                 labelInfo = cell(length(shapefile_data),1);
             end
-        elseif (shapefileIndex == 1 && INTERACTIVE_PLATFORM_REGION_SPECIFICATION)
+        elseif (shapefileIndex == 2 && INTERACTIVE_PLATFORM_REGION_SPECIFICATION)
             if isfile(gt_labels_platform_filename)
                 load(gt_labels_platform_filename);
             end
@@ -151,11 +173,6 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
             xy_region_range = xy_region_max - xy_region_min;
             xy_region_center = mean(boundingbox_vertices,1);
             
-            %
-            % TODO: ARW
-            % Change region shape to a circle consisting of at least 8
-            % vertices (better 16)
-            %
             if (prod(xy_region_range) == 0 || IGNORE_POLYGONS)
                 xy_region_min = xy_region_center - WINDOWSIZE/2;
                 xy_region_max = xy_region_center + WINDOWSIZE/2;
@@ -232,8 +249,11 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
                     num_vertices = size(labelInfo{regionIdx}.vertices,1);
 
                     poly_origin = [x_coord_list(1), y_coord_list(1)];
-
-                    win_center = labelInfo{regionIdx}.center - poly_origin;
+                    %if (isfield(labelInfo{regionIdx},'center')
+                    %    win_center = labelInfo{regionIdx}.center - poly_origin;
+                    %else
+                    %    win_center = mean(labelInfo{regionIdx}.vertices,1) - poly_origin;
+                    %end
                     win_vertices = labelInfo{regionIdx}.vertices - ones(num_vertices,1)*poly_origin;
                     regionOfInterest = drawpolygon('Position',win_vertices);
                     wait(regionOfInterest);
@@ -241,9 +261,11 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
                         uiDoneFlag = true;
                     else
                         num_vertices = size(regionOfInterest.Position,1);
+                        labelInfo{regionIdx}.ID = regionIdx;
                         labelInfo{regionIdx}.index = region(shapefileIndex).LabelValue;
                         labelInfo{regionIdx}.name = sprintf('%d',regionIdx);
                         labelInfo{regionIdx}.vertices = ones(num_vertices,1)*poly_origin + regionOfInterest.Position;
+                        labelInfo{regionIdx}.center = poly_origin + mean(labelInfo{regionIdx}.vertices,1);
                     end
                 else
                     regionOfInterest = drawellipse('Center',[(WINDOWSIZE + PLOT_MARGIN)/2, (WINDOWSIZE + PLOT_MARGIN)/2], ...
@@ -251,10 +273,10 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
                     wait(regionOfInterest);
                     if ~ishandle(5)
                         uiDoneFlag = true;
-                    else
-                        
+                    else                        
                         poly_origin = [x_coord_list(1), y_coord_list(1)];
                         num_vertices = size(regionOfInterest.Vertices,1);
+                        labelInfo{regionIdx}.ID = regionIdx;
                         labelInfo{regionIdx}.index = region(shapefileIndex).LabelValue;
                         labelInfo{regionIdx}.name = sprintf('%d',regionIdx);
                         labelInfo{regionIdx}.center = poly_origin + regionOfInterest.Center;
@@ -289,14 +311,6 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
                 %fig5_sp121_h = subplot(1,2,1), imshow(H, [], 'InitialMagnification', 'fit');
                 %fig5_sp121_h = subplot(1,2,1), imagesc(H);
                 fig5_sp121_h = subplot(1,2,1), imshow(hillshade_image(yy_vals,xx_vals), [], 'InitialMagnification', 'fit');
-                % Create a push button
-                %'Position',[420, 218, 100, 22],...
-%                 uipanel_handle = uipanel(fig5_h)
-%                 %uipanel_handle.uiDoneFlag = false;
-%                 btn_next = uibutton(uipanel_handle,'push',...
-%                     'ButtonPushedFcn', @(btn, event) nextButtonPushed(btn));
-%                 btn_done = uibutton(uipanel_handle,'push',...
-%                     'ButtonPushedFcn', @(btn, uiDoneFlag) doneButtonPushed(btn));
                 poly_origin = [x_coord_list(1), y_coord_list(1)];
                 if (exist('labelInfo','var') && regionIdx <= size(labelInfo,1) && isfield(labelInfo{regionIdx},'vertices'))
                     num_vertices = size(labelInfo{regionIdx}.vertices,1);
@@ -315,6 +329,7 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
                     uiDoneFlag = true;
                 else
                     num_vertices = size(regionOfInterest.Position,1);
+                    labelInfo{regionIdx}.ID = regionIdx;
                     labelInfo{regionIdx}.index = region(shapefileIndex).LabelValue;
                     labelInfo{regionIdx}.name = sprintf('%d',regionIdx);
                     labelInfo{regionIdx}.vertices = ones(num_vertices,1)*poly_origin + regionOfInterest.Position;
@@ -328,6 +343,23 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
             image_geo_ground_truth(bw==1) = region(shapefileIndex).LabelValue;
             
         end
+        
+        if (INTERACTIVE_ANNULAR_REGION_SPECIFICATION && shapefileIndex == 1)
+            save(gt_labels_annular_filename, 'labelInfo');
+            json_string = jsonencode(labelInfo, PrettyPrint=true);
+            fid = fopen(gt_labels_annular_filename_json,'wt');
+            fprintf(fid, json_string);
+            fclose(fid);
+        end
+        
+        if (INTERACTIVE_PLATFORM_REGION_SPECIFICATION && shapefileIndex == 2)
+            save(gt_labels_platform_filename, 'labelInfo');
+            json_string = jsonencode(labelInfo, PrettyPrint=true);
+            fid = fopen(gt_labels_platform_filename_json,'wt');
+            fprintf(fid, json_string);
+            fclose(fid);
+        end
+        
     end
     image_geo_ground_truth = uint8(image_geo_ground_truth);
     %colorized_label_image = label2rgb(image_geo_ground_truth);
@@ -335,21 +367,7 @@ for datasetIdx=NUMDATASETS:NUMDATASETS
     segmentation_image = labeloverlay(image_geo_output, image_geo_ground_truth);
     figure(3), imshow(segmentation_image);
     imwrite(image_geo_ground_truth, gis_output_gt_filename);   
-    if (INTERACTIVE_ANNULAR_REGION_SPECIFICATION)
-        save(gt_labels_annular_filename, 'labelInfo');
-    end
-    if (INTERACTIVE_PLATFORM_REGION_SPECIFICATION)
-        save(gt_labels_platform_filename, 'labelInfo');
-    end
     %pause;
 end
 
-% Create the function for the ButtonPushedFcn callback
-function out = doneButtonPushed(btn)
-    out = true;
-end     
-
-% Create the function for the ButtonPushedFcn callback
-function out = nextButtonPushed(btn)
-    out = true;
-end                
+            
