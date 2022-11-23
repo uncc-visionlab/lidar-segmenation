@@ -300,6 +300,10 @@ class SaveImage(keras.callbacks.Callback):
 
 if __name__ == "__main__":
 
+    # Run the following command to track training in a browser
+    #
+    #  tensorboard --logdir logs --reload_multifile=true
+    #
     BATCH_SIZE = 100
     NUM_EPOCHS = 500
     IMAGE_SIZE = 128
