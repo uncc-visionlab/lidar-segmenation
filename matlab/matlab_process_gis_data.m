@@ -18,7 +18,7 @@ MAX_INTENSITY = 255;
 %
 INTERACTIVE_ANNULAR_REGION_SPECIFICATION = true;
 INTERACTIVE_PLATFORM_REGION_SPECIFICATION = true;
-INTERACTION_LABEL_INDICES = 1:1000;
+INTERACTION_LABEL_INDICES = [];%1:1000;
 
 % Delete some labels from a file
 DO_DELETE = false;
@@ -62,6 +62,8 @@ for datasetIdx=1:NUMDATASETS
             gis_output_filename = 'KOM/raw/kom_dsm_lidar.png';
             gis_output_hillshade_filename = 'KOM/raw/kom_dsm_lidar_hs.png';
             gis_output_gt_filename = 'KOM/raw/kom_dsm_lidar_gt.png';
+            matlab_data_filename = 'KOM_image_data.mat';
+            matlab_gt_labels_all_filename = 'KOM_ground_truth_labels.mat';
             gt_labels_annular_filename = 'ground_truth_annular_structure_labels_kom.mat';
             gt_labels_annular_filename_json = 'ground_truth_annular_structure_labels_kom.json';
             gt_labels_platform_filename = 'ground_truth_platform_labels_kom.mat';            
@@ -72,6 +74,8 @@ for datasetIdx=1:NUMDATASETS
             gis_output_filename = 'MLS/raw/MLS_DEM.png';
             gis_output_hillshade_filename = 'MLS/raw/MLS_DEM_hs.png';
             gis_output_gt_filename = 'MLS/raw/MLS_DEM_gt.png';
+            matlab_data_filename = 'MLS_image_data.mat';
+            matlab_gt_labels_all_filename = 'MLS_ground_truth_labels.mat';
             gt_labels_annular_filename = 'ground_truth_annular_structure_labels_mls.mat';
             gt_labels_annular_filename_json = 'ground_truth_annular_structure_labels_mls.json';
             gt_labels_platform_filename = 'ground_truth_platform_labels_mls.mat';            
@@ -83,6 +87,8 @@ for datasetIdx=1:NUMDATASETS
             gis_output_filename = 'UCB/raw/UCB_elev_adjusted.png';
             gis_output_hillshade_filename = 'UCB/raw/UCB_elev_adjusted_hs.png';
             gis_output_gt_filename = 'UCB/raw/UCB_elev_adjusted_gt.png';
+            matlab_data_filename = 'UCB_image_data.mat'; 
+            matlab_gt_labels_all_filename = 'UCB_ground_truth_labels.mat';
             gt_labels_annular_filename = 'ground_truth_annular_structure_labels_ucb.mat';
             gt_labels_annular_filename_json = 'ground_truth_annular_structure_labels_ucb.json';
             gt_labels_platform_filename = 'ground_truth_platform_labels_ucb.mat';            
@@ -102,6 +108,7 @@ for datasetIdx=1:NUMDATASETS
         artificial_min_value = min(geotiff_data(:))-0.1;
         geotiff_data(geotiff_data==bad_pixel_values)=artificial_min_value;
     end
+    save(matlab_data_filename, 'geotiff_data','-v7','-nocompression');
     
     % normalize the elevation data to the 0-MAX_INTENSITY intensity range
     minValue = min(geotiff_data(:));
@@ -129,8 +136,7 @@ for datasetIdx=1:NUMDATASETS
     range_x = geotiff_info.SpatialRef.XWorldLimits(2) - geotiff_info.SpatialRef.XWorldLimits(1);
     range_y = geotiff_info.SpatialRef.YWorldLimits(2) - geotiff_info.SpatialRef.YWorldLimits(1);
     figure(1), imshow(geotiff_data,[])
-
-   
+    
     for shapefileIndex=1:length(gis_esri_shapefilenames)
         gis_esri_shapefilename = gis_esri_shapefilenames{shapefileIndex};
         shapefile_structure = shapeinfo(gis_esri_shapefilename);
@@ -345,7 +351,7 @@ for datasetIdx=1:NUMDATASETS
         end
         
         if (INTERACTIVE_ANNULAR_REGION_SPECIFICATION && shapefileIndex == 1)
-            save(gt_labels_annular_filename, 'labelInfo');
+            save(gt_labels_annular_filename, 'labelInfo','-v7','-nocompression');
             json_string = jsonencode(labelInfo, PrettyPrint=true);
             fid = fopen(gt_labels_annular_filename_json,'wt');
             fprintf(fid, json_string);
@@ -353,14 +359,19 @@ for datasetIdx=1:NUMDATASETS
         end
         
         if (INTERACTIVE_PLATFORM_REGION_SPECIFICATION && shapefileIndex == 2)
-            save(gt_labels_platform_filename, 'labelInfo');
+            save(gt_labels_platform_filename, 'labelInfo','-v7','-nocompression');
             json_string = jsonencode(labelInfo, PrettyPrint=true);
             fid = fopen(gt_labels_platform_filename_json,'wt');
             fprintf(fid, json_string);
             fclose(fid);
         end
-        
+        if (exist('labelInfo','var'))
+            all_labels(shapefileIndex).labels = labelInfo;
+        end
     end
+    save(matlab_gt_labels_all_filename, 'all_labels','-v7','-nocompression');
+    clear all_labels;
+    
     image_geo_ground_truth = uint8(image_geo_ground_truth);
     %colorized_label_image = label2rgb(image_geo_ground_truth);
     %figure(3), imshow(colorized_label_image,[]);

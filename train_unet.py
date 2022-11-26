@@ -334,6 +334,12 @@ if __name__ == "__main__":
     gis_input_filenames = ['kom_dsm_lidar.png',
                            'MLS_DEM.png',
                            'UCB_elev_adjusted.png']
+    gis_input_filenames_mat = ['KOM_image_data.mat',
+                               'MLS_image_data.mat',
+                               'UCB_image_data.mat']
+    gis_input_gt_filenames_mat = ['KOM_ground_truth_labels.mat',
+                                  'MLS_ground_truth_labels.mat',
+                                  'UCB_ground_truth_labels.mat']
     gis_input_gt_filenames = ['kom_dsm_lidar_gt.png',
                               'MLS_DEM_gt.png',
                               'UCB_elev_adjusted_gt.png']
@@ -347,26 +353,49 @@ if __name__ == "__main__":
     img_filename3 = home_folder + gis_data_path[2] + gis_input_filenames[2]
     mask_filename3 = home_folder + gis_data_path[2] + gis_input_gt_filenames[2]
 
-    image_1 = cv2.imread(img_filename1)
-    mask_1 = cv2.imread(mask_filename1)[:, :, 0:1]
-    image_2 = cv2.imread(img_filename2)
-    mask_2 = cv2.imread(mask_filename2)[:, :, 0:1]
-    image_3 = cv2.imread(img_filename3)
-    mask_3 = cv2.imread(mask_filename3)[:, :, 0:1]
+    if (True):
+        image_1 = cv2.imread(img_filename1)
+        mask_1 = cv2.imread(mask_filename1)[:, :, 0:1]
+        image_2 = cv2.imread(img_filename2)
+        mask_2 = cv2.imread(mask_filename2)[:, :, 0:1]
+        image_3 = cv2.imread(img_filename3)
+        mask_3 = cv2.imread(mask_filename3)[:, :, 0:1]
 
-    datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
-    datasets['data'] = [image_1, image_2, image_3]
-    datasets['labels'] = [mask_1, mask_2, mask_3]
-    num_datasets = len(datasets['data'])
+        datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
+        datasets['data'] = [image_1, image_2, image_3]
+        datasets['labels'] = [mask_1, mask_2, mask_3]
+        num_datasets = len(datasets['data'])
 
-    # for each dataset compute the connected components to recover the labeled regions of image data
-    # store the result of the connected component analysis
-    for datasetIdx in range(num_datasets):
-        analysis = cv2.connectedComponentsWithStats(datasets['labels'][datasetIdx], cv2.CV_32S)
-        (totalLabels, label_img, regionStats, regionCentroids) = analysis
-        datasets['num_regions'].append(regionStats.shape[0])
-        datasets['region_centroids'].append(regionCentroids)
-        datasets['analysis'].append(analysis)
+        # for each dataset compute the connected components to recover the labeled regions of image data
+        # store the result of the connected component analysis
+        for datasetIdx in range(num_datasets):
+            analysis = cv2.connectedComponentsWithStats(datasets['labels'][datasetIdx], cv2.CV_32S)
+            (totalLabels, label_img, regionStats, regionCentroids) = analysis
+            datasets['num_regions'].append(regionStats.shape[0])
+            datasets['region_centroids'].append(regionCentroids)
+            datasets['analysis'].append(analysis)
+    else:
+        import scipy.io as sio
+
+        image_data = []
+        for filenameIdx in range(len(gis_input_filenames_mat)):
+            mat_data = {}
+            img_filename_mat = home_folder + 'data/' + gis_input_filenames_mat[filenameIdx]
+            mat_data = sio.loadmat(img_filename_mat, squeeze_me=True)
+            image_data.append(mat_data['geotiff_data'])
+
+        image_labels = []
+        for filenameIdx in range(len(gis_input_gt_filenames_mat)):
+            mat_data = {}
+            img_gt_filename_mat = home_folder + 'data/' + gis_input_gt_filenames_mat[filenameIdx]
+            mat_data = sio.loadmat(img_gt_filename_mat, squeeze_me=True)
+            image_labels.append(mat_data['all_labels'])
+        # image_labels[0]['labels'][0][0]['ID']
+
+        datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
+        datasets['data'] = image_data
+        datasets['labels'] = image_labels
+        num_datasets = len(datasets['data'])
 
     # this will store all of our data for all datasets and their components which consist of the data split into
     # training, validation and testing sets
