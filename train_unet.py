@@ -353,7 +353,7 @@ if __name__ == "__main__":
     img_filename3 = home_folder + gis_data_path[2] + gis_input_filenames[2]
     mask_filename3 = home_folder + gis_data_path[2] + gis_input_gt_filenames[2]
 
-    if (True):
+    if (False):
         image_1 = cv2.imread(img_filename1)
         mask_1 = cv2.imread(mask_filename1)[:, :, 0:1]
         image_2 = cv2.imread(img_filename2)
@@ -390,11 +390,24 @@ if __name__ == "__main__":
             img_gt_filename_mat = home_folder + 'data/' + gis_input_gt_filenames_mat[filenameIdx]
             mat_data = sio.loadmat(img_gt_filename_mat, squeeze_me=True)
             image_labels.append(mat_data['all_labels'])
-        # image_labels[0]['labels'][0][0]['ID']
 
         datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
-        datasets['data'] = image_data
-        datasets['labels'] = image_labels
+        for datasetIdx in range(len(image_data)):
+            datasets['data'].append(image_data[datasetIdx])
+
+        for datasetIdx in range(len(image_data)):
+            labelArr = datasets['labels']
+            for labelIdx in range(len(image_labels[0]['labels'])):
+                regions = []
+                for regionIdx in range(len(image_labels[0]['labels'][labelIdx])):
+                    region_data = {'ID': 0, 'centroid': [], 'vertices': []}
+                    region_data['vertices'] = image_labels[0]['labels'][labelIdx][regionIdx]['vertices'].all()
+                    region_data['centroid'] = np.mean(region_data['vertices'], axis=0)
+                    region_data['ID'] = image_labels[0]['labels'][labelIdx][regionIdx]['ID'].all()
+                    regions.append(region_data)
+                if len(regions) > 0:
+                    labelArr.append(regions)
+
         num_datasets = len(datasets['data'])
 
     # this will store all of our data for all datasets and their components which consist of the data split into
