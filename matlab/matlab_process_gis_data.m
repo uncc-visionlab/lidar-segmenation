@@ -16,9 +16,9 @@ MAX_INTENSITY = 255;
 %
 % Interactions
 %
-INTERACTIVE_ANNULAR_REGION_SPECIFICATION = true;
-INTERACTIVE_PLATFORM_REGION_SPECIFICATION = true;
-INTERACTION_LABEL_INDICES = [];%1:1000;
+INTERACTIVE_ANNULAR_REGION_SPECIFICATION = false;
+INTERACTIVE_PLATFORM_REGION_SPECIFICATION = false;
+INTERACTION_LABEL_INDICES = 1:53;
 
 % Delete some labels from a file
 DO_DELETE = false;
@@ -55,7 +55,10 @@ for datasetIdx=1:NUMDATASETS
     switch DATASETINDEX
         case 1
             gis_geotiff_filename = 'KOM/raw/kom_dsm_lidar.tif';
-            gis_esri_shapefilenames = {'KOM/raw/Kom_Annular_strs.shp','KOM/raw/Kom_platforms.shp'};
+            importData(1).filename = 'KOM/raw/Kom_Annular_strs.shp';
+            importData(1).labelValue = 1;
+%             importData(2).filename = 'KOM/raw/Kom_platforms.shp';
+%             importData(2).labelValue = 2;
             %gis_esri_shapefilenames = {'KOM/raw/Kom_Annular_strs.shp','KOM/raw/Kom_AI_platforms.shp'};
             %gis_esri_shapefilenames = {'KOM/raw/Kom_Annular_strs.shp'};
             %gis_esri_shapefilenames = {'KOM/raw/Kom_Annular_strs.shp'};
@@ -70,7 +73,8 @@ for datasetIdx=1:NUMDATASETS
             gt_labels_platform_filename_json = 'ground_truth_platform_labels_kom.json';            
         case 2
             gis_geotiff_filename = 'MLS/raw/MLS_DEM.tif';
-            gis_esri_shapefilenames = {'MLS/raw/MLS_Annular_strs.shp'};
+            importData(1).filename = 'MLS/raw/MLS_Annular_strs.shp';
+            importData(1).labelValue = 1;
             gis_output_filename = 'MLS/raw/MLS_DEM.png';
             gis_output_hillshade_filename = 'MLS/raw/MLS_DEM_hs.png';
             gis_output_gt_filename = 'MLS/raw/MLS_DEM_gt.png';
@@ -83,7 +87,8 @@ for datasetIdx=1:NUMDATASETS
             
         case 3
             gis_geotiff_filename = 'UCB/raw/UCB_elev_adjusted.tif';
-            gis_esri_shapefilenames = {'UCB/raw/UBM_anulares.shp'};
+            importData(1).filename = 'UCB/raw/UBM_anulares.shp';
+            importData(1).labelValue = 1;
             gis_output_filename = 'UCB/raw/UCB_elev_adjusted.png';
             gis_output_hillshade_filename = 'UCB/raw/UCB_elev_adjusted_hs.png';
             gis_output_gt_filename = 'UCB/raw/UCB_elev_adjusted_gt.png';
@@ -137,8 +142,12 @@ for datasetIdx=1:NUMDATASETS
     range_y = geotiff_info.SpatialRef.YWorldLimits(2) - geotiff_info.SpatialRef.YWorldLimits(1);
     figure(1), imshow(geotiff_data,[])
     
-    for shapefileIndex=1:length(gis_esri_shapefilenames)
-        gis_esri_shapefilename = gis_esri_shapefilenames{shapefileIndex};
+    if isfile(matlab_gt_labels_all_filename)
+        load(matlab_gt_labels_all_filename);
+    end
+    
+    for shapefileIndex=1:length(importData)
+        gis_esri_shapefilename = importData(shapefileIndex).filename;
         shapefile_structure = shapeinfo(gis_esri_shapefilename);
         shapefile_data = shaperead(gis_esri_shapefilename);
         shp_range_x = shapefile_structure(1).BoundingBox(2,1) - shapefile_structure(1).BoundingBox(1,1);
@@ -153,16 +162,16 @@ for datasetIdx=1:NUMDATASETS
             % 'Draw an ellipse that encompasses the annular structure region then' ...
             % 'press ESC after each region is specified to move to the next region'};
             % waitfor(msgbox(message, 'Select Training Data','help'))
-            if isfile(gt_labels_annular_filename)
-                load(gt_labels_annular_filename);
-            end
-            if (exist('labelInfo','var') == 0) 
+            %if isfile(gt_labels_annular_filename)
+            %    load(gt_labels_annular_filename);
+            %end
+            if (exist('all_labels','var') == 0) 
                 labelInfo = cell(length(shapefile_data),1);
             end
         elseif (shapefileIndex == 2 && INTERACTIVE_PLATFORM_REGION_SPECIFICATION)
-            if isfile(gt_labels_platform_filename)
-                load(gt_labels_platform_filename);
-            end
+            %if isfile(gt_labels_platform_filename)
+            %    load(gt_labels_platform_filename);
+            %end
             if (exist('labelInfo','var') == 0) 
                 labelInfo = cell(length(shapefile_data),1);
             end
@@ -196,14 +205,13 @@ for datasetIdx=1:NUMDATASETS
                     xy_region_min(1), xy_region_max(2)];
             end
             
-            figure(1), hold on, drawpolygon('Position', boundingbox_vertices, ...
-                'MarkerSize', 5, ...
-                'LineWidth',1,'FaceAlpha', 0.3, 'Color', region(shapefileIndex).Color, ...
-                'SelectedColor', region(shapefileIndex).Color);
-            figure(4), hold on, drawpolygon('Position', boundingbox_vertices, ...
-                'MarkerSize', 5, ...
-                'LineWidth',1,'FaceAlpha', 0.3, 'Color', region(shapefileIndex).Color, ...
-                'SelectedColor', region(shapefileIndex).Color);
+%                'MarkerSize', 5, ... 
+%             figure(1), hold on, drawpolygon('Position', boundingbox_vertices, ...
+%                 'LineWidth',1,'FaceAlpha', 0.3, 'Color', region(shapefileIndex).Color, ...
+%                 'SelectedColor', region(shapefileIndex).Color);
+%             figure(4), hold on, drawpolygon('Position', boundingbox_vertices, ...
+%                 'LineWidth',1,'FaceAlpha', 0.3, 'Color', region(shapefileIndex).Color, ...
+%                 'SelectedColor', region(shapefileIndex).Color);
             
             if (PLOT_REGION_MESH)
                 PLOT_MARGIN = 10;
@@ -245,7 +253,7 @@ for datasetIdx=1:NUMDATASETS
 
                 fig5_h = figure(5);
                 figure(fig5_h);
-                set(fig5_h, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
+                %set(fig5_h, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
                 fig5_sp122_h = subplot(1,2,2), mesh(x_meshgrid, y_meshgrid, zz_vals), title(titlestr);
                 %view(0,90)
                 %fig5_sp121_h = subplot(1,2,1), imshow(H, [], 'InitialMagnification', 'fit');
@@ -351,19 +359,19 @@ for datasetIdx=1:NUMDATASETS
         end
         
         if (INTERACTIVE_ANNULAR_REGION_SPECIFICATION && shapefileIndex == 1)
-            save(gt_labels_annular_filename, 'labelInfo','-v7','-nocompression');
-            json_string = jsonencode(labelInfo, PrettyPrint=true);
-            fid = fopen(gt_labels_annular_filename_json,'wt');
-            fprintf(fid, json_string);
-            fclose(fid);
+%            save(gt_labels_annular_filename, 'labelInfo','-v7','-nocompression');
+%            json_string = jsonencode(labelInfo, PrettyPrint=true);
+%            fid = fopen(gt_labels_annular_filename_json,'wt');
+%            fprintf(fid, json_string);
+%            fclose(fid);
         end
         
         if (INTERACTIVE_PLATFORM_REGION_SPECIFICATION && shapefileIndex == 2)
-            save(gt_labels_platform_filename, 'labelInfo','-v7','-nocompression');
-            json_string = jsonencode(labelInfo, PrettyPrint=true);
-            fid = fopen(gt_labels_platform_filename_json,'wt');
-            fprintf(fid, json_string);
-            fclose(fid);
+%            save(gt_labels_platform_filename, 'labelInfo','-v7','-nocompression');
+%            json_string = jsonencode(labelInfo, PrettyPrint=true);
+%            fid = fopen(gt_labels_platform_filename_json,'wt');
+%            fprintf(fid, json_string);
+%            fclose(fid);
         end
         if (exist('labelInfo','var'))
             all_labels(shapefileIndex).labels = labelInfo;
