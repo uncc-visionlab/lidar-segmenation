@@ -322,7 +322,7 @@ if __name__ == "__main__":
 
     home_folder = '/home/fjannat/Documents/EarthVision/data_resource/'
     home_folder = '/home/arwillis/PyCharm/'
-    # home_folder = './'
+    home_folder = './'
     results_folder = 'results/'
     trial_folder = 'unet/trial'
     model_filename = '/as_unet.hdf5'
@@ -393,20 +393,36 @@ if __name__ == "__main__":
 
         datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
         for datasetIdx in range(len(image_data)):
-            datasets['data'].append(image_data[datasetIdx])
+            image = np.zeros((np.array(image_data[datasetIdx]).shape[0], np.array(image_data[datasetIdx]).shape[1], 3))
+            image[:, :, 0] = image_data[datasetIdx]
+            image[:, :, 1] = image_data[datasetIdx]
+            image[:, :, 2] = image_data[datasetIdx]
+            datasets['data'].append(image)
 
         for datasetIdx in range(len(image_data)):
-            labelArr = datasets['labels']
-            for labelIdx in range(len(image_labels[0]['labels'])):
+            #labelArr = datasets['labels']
+            for labelIdx in range(len(image_labels[datasetIdx].item())):   # A
                 regions = []
-                for regionIdx in range(len(image_labels[0]['labels'][labelIdx])):
-                    region_data = {'ID': 0, 'centroid': [], 'vertices': []}
-                    region_data['vertices'] = image_labels[0]['labels'][labelIdx][regionIdx]['vertices'].all()
-                    region_data['centroid'] = np.mean(region_data['vertices'], axis=0)
-                    region_data['ID'] = image_labels[0]['labels'][labelIdx][regionIdx]['ID'].all()
+                for regionIdx in range(len(image_labels[datasetIdx].item()[labelIdx])):   # B
+                    region_data = {'label_value': image_labels[datasetIdx].item()[labelIdx][regionIdx]['label_value'],
+                                   #'centroid': image_labels[datasetIdx].item()[labelIdx][regionIdx]['center'],
+                                   'centroid': np.mean(image_labels[datasetIdx].item()[labelIdx][regionIdx]['vertices'], 0),
+                                   'vertices': image_labels[datasetIdx].item()[labelIdx][regionIdx]['vertices'],
+                                   'ID': image_labels[datasetIdx].item()[labelIdx][regionIdx]['ID']}
                     regions.append(region_data)
-                if len(regions) > 0:
-                    labelArr.append(regions)
+            #    if len(regions) > 0:
+            #        labelArr.append(regions)
+                datasets['region_centroids'].append(np.asarray([region_data['centroid'] for region_data in regions]))
+                datasets['num_regions'].append(len(datasets['region_centroids'][datasetIdx]))
+                image_shape = image_data[datasetIdx].shape
+                mask = np.zeros(image_shape)
+                for i in range(len(regions)):
+                    cv2.fillPoly(mask, np.int32([regions[i]['vertices']]), (1,1,1))
+
+                datasets['labels'].append(mask.astype(np.uint8)[:,:,None])
+                analysis = cv2.connectedComponentsWithStats(datasets['labels'][datasetIdx], cv2.CV_32S)
+                (totalLabels, label_img, regionStats, regionCentroids) = analysis
+                datasets['analysis'].append(analysis)
 
         num_datasets = len(datasets['data'])
 
@@ -453,9 +469,9 @@ if __name__ == "__main__":
                 globalRegionIndex = dataset['indices'][localRegionIndex]
                 (totalLabels, label_img, regionStats, regionCentroids) = datasets['analysis'][datasetIdx]
                 # ensure that the connected component corresponds to a specific size/area region
-                if regionStats[globalRegionIndex][2] == 40 and regionStats[globalRegionIndex][3] == 40:
+                # if regionStats[globalRegionIndex][2] == 40 and regionStats[globalRegionIndex][3] == 40:
                     # if regionStats[globalRegionIndex][2] * regionStats[globalRegionIndex][3] > 900:
-                    regionCentroidArray.append(datasets['region_centroids'][datasetIdx][globalRegionIndex])
+                regionCentroidArray.append(datasets['region_centroids'][datasetIdx][globalRegionIndex])
             dataset['num_regions'] = len(regionCentroidArray)
 
     if SHOW_AUGMENTATION:
@@ -474,8 +490,8 @@ if __name__ == "__main__":
                     angle = np.random.uniform(low=0, high=359.9)
                     center_y, center_x = dataset_components[dataset]['region_centroids'][regionIndex]
                     # randomly perturb the offset of the region within the tile
-                    dx = np.random.uniform(low=-30, high=30)
-                    dy = np.random.uniform(low=-30, high=30)
+                    dx = 0  # np.random.uniform(low=-30, high=30)
+                    dy = 0  # np.random.uniform(low=-30, high=30)
                     aug_image_center = np.array([center_x + dx, center_y + dy], dtype=np.float32)
                     skip_this_image = False
 
