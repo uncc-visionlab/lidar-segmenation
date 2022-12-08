@@ -353,7 +353,7 @@ if __name__ == "__main__":
     img_filename3 = home_folder + gis_data_path[2] + gis_input_filenames[2]
     mask_filename3 = home_folder + gis_data_path[2] + gis_input_gt_filenames[2]
 
-    if (False):
+    if False:
         image_1 = cv2.imread(img_filename1)
         mask_1 = cv2.imread(mask_filename1)[:, :, 0:1]
         image_2 = cv2.imread(img_filename2)
@@ -393,10 +393,11 @@ if __name__ == "__main__":
 
         datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
         for datasetIdx in range(len(image_data)):
-            image = np.zeros((np.array(image_data[datasetIdx]).shape[0], np.array(image_data[datasetIdx]).shape[1], 3))
-            image[:, :, 0] = image_data[datasetIdx]
-            image[:, :, 1] = image_data[datasetIdx]
-            image[:, :, 2] = image_data[datasetIdx]
+            # image = np.zeros((np.array(image_data[datasetIdx]).shape[0], np.array(image_data[datasetIdx]).shape[1], 3))
+            # image[:, :, 0] = image_data[datasetIdx]
+            # image[:, :, 1] = image_data[datasetIdx]
+            # image[:, :, 2] = image_data[datasetIdx]
+            image = image_data[datasetIdx][:, :, None]
             datasets['data'].append(image)
 
         for datasetIdx in range(len(image_data)):
@@ -519,7 +520,7 @@ if __name__ == "__main__":
 
                     # if the augmentation was successful add it to the image augmentation dataset
                     if aug_image_patch is not None:
-                        aug_image_patch = np.array(aug_image_patch[:, :, 1], dtype=np.float32) / 255.0
+                        aug_image_patch = np.array(aug_image_patch, dtype=np.float32) / 255.0
                         dataArray.append(aug_image_patch)
                         labelArray.append(aug_mask_patch)
                         if SHOW_AUGMENTATION:
