@@ -652,7 +652,7 @@ if __name__ == "__main__":
     # loss, acc = unet_model.evaluate(X_test)
     # print("Accuracy", acc)
 
-    unet_model.load_weights(save_results)
+    unet_model.load_weights(save_results + model_filename)
     Y_validate_predicted = unet_model.predict(X_validate)
     Y_validate_predicted_argmax = np.argmax(Y_validate_predicted, axis=3)
 
