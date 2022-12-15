@@ -175,7 +175,8 @@ if __name__ == "__main__":
 
     # Image augmentation settings
     NUM_AUGMENTATIONS_PER_IMAGE = 100
-    SHOW_AUGMENTATION = False
+    SHOW_AUGMENTATION = True
+    # SHOW_AUGMENTATION = False
 
     # split the data within each image test/train
     # test 20%
@@ -206,9 +207,9 @@ if __name__ == "__main__":
                                   'MLS_ground_truth_labels.mat',
                                   'UCB_ground_truth_labels.mat']
     image_data_hs = []
-    for filenameIdx in range(len(gis_input_filenames_mat)):
-        img_filename_mat = home_folder + 'data/' + gis_input_filenames_hs[filenameIdx]
-        image_data_hs_ex = cv2.imread(gis_input_filenames_hs[0])
+    for filenameIdx in range(len(gis_input_filenames_hs)):
+        img_filename_hs = home_folder + gis_data_path[filenameIdx] + gis_input_filenames_hs[filenameIdx]
+        image_data_hs_ex = cv2.imread(img_filename_hs)
         image_data_hs.append(image_data_hs_ex)
 
     image_data = []
@@ -225,7 +226,7 @@ if __name__ == "__main__":
         mat_data = sio.loadmat(img_gt_filename_mat, squeeze_me=True)
         image_labels.append(mat_data['all_labels'])
 
-    datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
+    datasets = {'data': [], 'data_hs': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
     for datasetIdx in range(len(image_data)):
         # image = np.zeros((np.array(image_data[datasetIdx]).shape[0], np.array(image_data[datasetIdx]).shape[1], 3))
         # image[:, :, 0] = image_data[datasetIdx]
