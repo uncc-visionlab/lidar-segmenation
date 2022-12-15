@@ -11,6 +11,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import cv2
 import numpy as np
+import matplotlib
+matplotlib.use('tkagg')
 from matplotlib import pyplot as plt
 from patchify import patchify, unpatchify
 import pickle
@@ -18,11 +20,14 @@ import random
 import tensorflow as tf
 from keras.metrics import MeanIoU
 from keras.callbacks import ModelCheckpoint, EarlyStopping, CSVLogger
+from keras.models import load_model, save_model
 
 import segmentation_models as sm
 from tensorflow.keras.optimizers import Adam
 from datetime import datetime
 from att_models import Attention_ResUNet, UNet, Attention_UNet, dice_coef, dice_coef_loss, jacard_coef
+
+import scipy.io as sio
 
 def display_multiple_img(original, ground_truth, y_test_argmax, plt_name, save_results, n=5):
     figure, ax = plt.subplots(nrows=n, ncols=3, figsize=(12, n * 2))
@@ -42,6 +47,21 @@ def display_multiple_img(original, ground_truth, y_test_argmax, plt_name, save_r
     plt.savefig(save_results + "/" + str(plt_name) + ".png")
     plt.show()
 
+def get_sample_display_multiple_img(original, ground_truth, n=5):
+    figure, ax = plt.subplots(nrows=n, ncols=2, figsize=(12, n * 2))
+    c = 0
+    j = 1
+
+    for i in range(n):
+        image_number = random.randint(0, ground_truth.shape[0])
+        ax.ravel()[c].imshow(original[image_number], cmap='gray')
+        ax.ravel()[c].set_title("Original Image: " + str(image_number))
+        ax.ravel()[c + 1].imshow(ground_truth[image_number], cmap='gray')
+        ax.ravel()[c + 1].set_title("Ground Truth: " + str(image_number))
+        c = c + 2
+        j = j + 1
+    plt.tight_layout()
+    plt.show()
 
 def getRigidImagePatch(img, height, width, center_y, center_x, angle):
     theta = (angle / 180) * np.pi
@@ -72,177 +92,6 @@ def getRigidImagePatch(img, height, width, center_y, center_x, angle):
     xy_end = np.array([xy_center_newimg[0] + width / 2, xy_center_newimg[1] + height / 2], dtype=np.int32)
     image_patch_aug = transformed_image_patch[xy_start[1]:xy_end[1], xy_start[0]:xy_end[0]]
     return image_patch_aug
-
-
-def display_learning_curves(history):
-    result = history.history
-    param = []
-    for key in result:
-        param.append(key)
-    l = int(len(result) / 2)
-    print(l)
-    n_epochs = range(1, len(history.history[param[0]]) + 1)
-    print(n_epochs)
-
-    fig = plt.figure(figsize=(12, 6))
-
-    plt.subplot(1, 3, 1)
-    plt.plot(n_epochs, history.history[param[0]], label=str(param[0]))
-    plt.plot(n_epochs, history.history[param[0 + l]], label=str(param[0 + l]))
-    plt.title(str(param[0]))
-    plt.xlabel("Epoch")
-    plt.ylabel(str(param[0]))
-    plt.legend(loc="upper right")
-
-    plt.subplot(1, 3, 2)
-    plt.plot(n_epochs, history.history[param[1]], label=str(param[1]))
-    plt.plot(n_epochs, history.history[param[1 + l]], label=str(param[1 + l]))
-    plt.title(str(param[1]))
-    plt.xlabel("Epoch")
-    plt.ylabel(str(param[1]))
-    plt.legend(loc="upper right")
-
-    plt.subplot(1, 3, 3)
-    plt.plot(n_epochs, history.history[param[2]], label=str(param[2]))
-    plt.plot(n_epochs, history.history[param[2 + l]], label=str(param[2 + l]))
-    plt.title(str(param[2]))
-    plt.xlabel("Epoch")
-    plt.ylabel(str(param[2]))
-    plt.legend(loc="upper right")
-
-    fig.tight_layout()
-    plt.show()
-
-
-def get_rgb_to_2D_label(label):
-    """
-    Suply our labale masks as input in RGB format. 
-    Replace pixels with specific RGB values ...
-    """
-    label = label
-
-    label_seg = np.zeros(label.shape, dtype=np.float32)
-    # when platforms
-    #     label_seg [np.all(label>=150,axis=-1)] = 1
-    #     label_seg [np.all(label<150,axis=-1)] = 0
-    # when annular structure
-
-    label_seg[np.all(label >= 254, axis=-1)] = 1
-    label_seg[np.all(label < 254, axis=-1)] = 0
-
-    return label_seg
-
-
-def get_labels_from_mask(mask_dataset):
-    labels = []
-    for i in range(len(mask_dataset)):
-        label = get_rgb_to_2D_label(mask_dataset[i])
-        labels.append(label)
-    labels = np.array(labels)
-    return labels
-
-
-def get_area_covered(img, th_area=2):
-    height = img.shape[0]
-    width = img.shape[1]
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    ret, thresh = cv2.threshold(gray, 0, 1, cv2.THRESH_BINARY)
-    count = cv2.countNonZero(thresh)
-    area = (1 - count / (width * height)) * 100
-    if area > th_area:
-        return True
-    else:
-        return False
-
-
-def get_column(mask, i):
-    col = [row[i] for row in mask]
-    col = np.array(col)
-    col = np.hstack(col.flatten())
-    if 0 in col:
-        return True
-    else:
-        return False
-
-
-def get_row(mask, i):
-    row = np.array(mask[i])
-    row = np.hstack(row.flatten())
-    if 0 in row:
-        return True
-    else:
-        return False
-
-
-def check_if_obj_border(mask):
-    x, y, z = mask.shape
-    # checking first and last row
-    row_f = get_row(mask, 0)
-    row_l = get_row(mask, y - 1)
-    # checking first and last column
-    col_f = get_column(mask, 0)
-    col_l = get_column(mask, y - 1)
-    op = [row_f, row_l, col_f, col_l]
-    if True in op:
-        return True
-
-    else:
-        return False
-
-
-def get_image_mask_patches(img_dir, mask_dir, img_size=128, step=20, th_area=2):
-    large_image_stack = cv2.imread(img_dir)
-    large_mask_stack = cv2.imread(mask_dir)[:, :, 0:1]
-    print(large_image_stack.shape)
-    print(large_mask_stack.shape)
-
-    # Step=128 for 128 patches means no overlap
-    patches_img = patchify(large_image_stack, (img_size, img_size, 3), step=step)
-    patches_mask = patchify(large_mask_stack, (img_size, img_size, 1), step=step)
-
-    all_img_patches = []
-    all_mask_patches = []
-
-    for i in range(patches_mask.shape[0]):
-        for j in range(patches_mask.shape[1]):
-
-            single_patch_mask = patches_mask[i, j, 0, :, :, :]
-
-            single_patch_mask = (single_patch_mask.astype('float32'))
-            # single_patch_mask = get_labels_from_mask(single_patch_mask)
-            # area_thresh = get_area_covered(single_patch_mask, th_area)
-            # if len(np.unique(single_patch_mask))>1 and area_thresh:
-            WINDOWSIZE = 40
-            if np.count_nonzero(single_patch_mask > 0.0) == WINDOWSIZE * WINDOWSIZE:
-                # check =check_if_obj_border(single_patch_mask[:,:,0:1])
-                # if check!=True:
-                all_mask_patches.append(single_patch_mask[:, :, 0:1])
-
-                single_patch_img = patches_img[i, j, 0, :, :, :]
-                single_patch_img = (single_patch_img.astype('float32')) / 255.0
-                all_img_patches.append(single_patch_img)
-
-    images = np.array(all_img_patches)
-    masks = np.array(all_mask_patches)
-    return images, masks
-
-
-def get_sample_display_multiple_img(original, ground_truth, n=5):
-    figure, ax = plt.subplots(nrows=n, ncols=2, figsize=(12, n * 2))
-    c = 0
-    j = 1
-
-    for i in range(n):
-        image_number = random.randint(0, ground_truth.shape[0])
-        ax.ravel()[c].imshow(original[image_number], cmap='gray')
-        ax.ravel()[c].set_title("Original Image: " + str(image_number))
-        ax.ravel()[c + 1].imshow(ground_truth[image_number], cmap='gray')
-        ax.ravel()[c + 1].set_title("Ground Truth: " + str(image_number))
-        c = c + 2
-        j = j + 1
-    plt.tight_layout()
-    plt.show()
-
 
 def to_pickle(thing, path):  # save something
     with open(path, 'wb') as handle:
@@ -297,6 +146,22 @@ class SaveImage(keras.callbacks.Callback):
             with tf.name_scope("val") as scope:
                 tf.summary.image(step=epoch, data=val_sample, name=scope, max_outputs=len(val_sample))
 
+class HybridDiceAndFocalLoss:
+    def __init__(self):
+        self.dice_loss = sm.losses.DiceLoss(class_weights=np.array([.5, .5]))
+        self.focal_loss = sm.losses.CategoricalFocalLoss()
+        total_loss = self.dice_loss + (1 * self.focal_loss)
+        self._name = 'hybrid_dice_and_focal_loss'
+    @property
+    def __name__(self):
+        if self._name is None:
+            return self.__class__.__name__
+        return self._name
+    def __call__(self, gt, pr):
+        # squared_difference = tf.square(y_true - y_pred)
+        # return tf.reduce_mean(squared_difference, axis=-1)
+        total_loss = self.dice_loss(gt, pr) + (1 * self.focal_loss(gt, pr))
+        return total_loss
 
 if __name__ == "__main__":
 
@@ -305,7 +170,7 @@ if __name__ == "__main__":
     #  tensorboard --logdir logs --reload_multifile=true
     #
     BATCH_SIZE = 100
-    NUM_EPOCHS = 500
+    NUM_EPOCHS = 250
     IMAGE_SIZE = 128
 
     # Image augmentation settings
@@ -322,110 +187,81 @@ if __name__ == "__main__":
 
     home_folder = '/home/fjannat/Documents/EarthVision/data_resource/'
     home_folder = '/home/arwillis/PyCharm/'
-    home_folder = './'
+    home_folder = '../'
     results_folder = 'results/'
-    trial_folder = 'unet/trial'
-    model_filename = '/as_unet.hdf5'
-    training_filename = '/data_training.pkl'
-    testing_filename = '/data_testing.pkl'
-    validation_filename = '/data_validation.pkl'
+    trial_folder = 'unet/trial/'
+    model_filename = 'unet_model.hdf5'
+    training_filename = 'data_training.pkl'
+    testing_filename = 'data_testing.pkl'
+    validation_filename = 'data_validation.pkl'
 
     gis_data_path = ['data/KOM/raw/', 'data/MLS/raw/', 'data/UCB/raw/']
-    gis_input_filenames = ['kom_dsm_lidar.png',
-                           'MLS_DEM.png',
-                           'UCB_elev_adjusted.png']
+    gis_input_filenames_hs = ['kom_dsm_lidar_hs.png',
+                              'MLS_DEM_hs.png',
+                              'UCB_elev_adjusted_hs.png']
     gis_input_filenames_mat = ['KOM_image_data.mat',
                                'MLS_image_data.mat',
                                'UCB_image_data.mat']
     gis_input_gt_filenames_mat = ['KOM_ground_truth_labels.mat',
                                   'MLS_ground_truth_labels.mat',
                                   'UCB_ground_truth_labels.mat']
-    gis_input_gt_filenames = ['kom_dsm_lidar_gt.png',
-                              'MLS_DEM_gt.png',
-                              'UCB_elev_adjusted_gt.png']
+    image_data_hs = []
+    for filenameIdx in range(len(gis_input_filenames_mat)):
+        img_filename_mat = home_folder + 'data/' + gis_input_filenames_hs[filenameIdx]
+        image_data_hs_ex = cv2.imread(gis_input_filenames_hs[0])
+        image_data_hs.append(image_data_hs_ex)
 
-    img_filename1 = home_folder + gis_data_path[0] + gis_input_filenames[0]
-    mask_filename1 = home_folder + gis_data_path[0] + gis_input_gt_filenames[0]
+    image_data = []
+    for filenameIdx in range(len(gis_input_filenames_mat)):
+        mat_data = {}
+        img_filename_mat = home_folder + 'data/' + gis_input_filenames_mat[filenameIdx]
+        mat_data = sio.loadmat(img_filename_mat, squeeze_me=True)
+        image_data.append(mat_data['geotiff_data'])
 
-    img_filename2 = home_folder + gis_data_path[1] + gis_input_filenames[1]
-    mask_filename2 = home_folder + gis_data_path[1] + gis_input_gt_filenames[1]
+    image_labels = []
+    for filenameIdx in range(len(gis_input_gt_filenames_mat)):
+        mat_data = {}
+        img_gt_filename_mat = home_folder + 'data/' + gis_input_gt_filenames_mat[filenameIdx]
+        mat_data = sio.loadmat(img_gt_filename_mat, squeeze_me=True)
+        image_labels.append(mat_data['all_labels'])
 
-    img_filename3 = home_folder + gis_data_path[2] + gis_input_filenames[2]
-    mask_filename3 = home_folder + gis_data_path[2] + gis_input_gt_filenames[2]
+    datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
+    for datasetIdx in range(len(image_data)):
+        # image = np.zeros((np.array(image_data[datasetIdx]).shape[0], np.array(image_data[datasetIdx]).shape[1], 3))
+        # image[:, :, 0] = image_data[datasetIdx]
+        # image[:, :, 1] = image_data[datasetIdx]
+        # image[:, :, 2] = image_data[datasetIdx]
+        image = image_data[datasetIdx][:, :, None]
+        datasets['data'].append(image)
+        image_hs = image_data_hs[datasetIdx]
+        datasets['data_hs'].append(image_hs)
 
-    if False:
-        image_1 = cv2.imread(img_filename1)
-        mask_1 = cv2.imread(mask_filename1)[:, :, 0:1]
-        image_2 = cv2.imread(img_filename2)
-        mask_2 = cv2.imread(mask_filename2)[:, :, 0:1]
-        image_3 = cv2.imread(img_filename3)
-        mask_3 = cv2.imread(mask_filename3)[:, :, 0:1]
+    for datasetIdx in range(len(image_data)):
+        #labelArr = datasets['labels']
+        for labelIdx in range(len(image_labels[datasetIdx].item())):   # A
+            regions = []
+            for regionIdx in range(len(image_labels[datasetIdx].item()[labelIdx])):   # B
+                region_data = {'label_value': image_labels[datasetIdx].item()[labelIdx][regionIdx]['label_value'],
+                               #'centroid': image_labels[datasetIdx].item()[labelIdx][regionIdx]['center'],
+                               'centroid': np.mean(image_labels[datasetIdx].item()[labelIdx][regionIdx]['vertices'], 0),
+                               'vertices': image_labels[datasetIdx].item()[labelIdx][regionIdx]['vertices'],
+                               'ID': image_labels[datasetIdx].item()[labelIdx][regionIdx]['ID']}
+                regions.append(region_data)
+        #    if len(regions) > 0:
+        #        labelArr.append(regions)
+            datasets['region_centroids'].append(np.asarray([region_data['centroid'] for region_data in regions]))
+            datasets['num_regions'].append(len(datasets['region_centroids'][datasetIdx]))
+            image_shape = image_data[datasetIdx].shape
+            mask = np.zeros(image_shape)
+            for i in range(len(regions)):
+                cv2.fillPoly(mask, np.int32([regions[i]['vertices']]), (1,1,1))
 
-        datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
-        datasets['data'] = [image_1, image_2, image_3]
-        datasets['labels'] = [mask_1, mask_2, mask_3]
-        num_datasets = len(datasets['data'])
-
-        # for each dataset compute the connected components to recover the labeled regions of image data
-        # store the result of the connected component analysis
-        for datasetIdx in range(num_datasets):
+            datasets['labels'].append(mask.astype(np.uint8)[:,:,None])
             analysis = cv2.connectedComponentsWithStats(datasets['labels'][datasetIdx], cv2.CV_32S)
             (totalLabels, label_img, regionStats, regionCentroids) = analysis
-            datasets['num_regions'].append(regionStats.shape[0])
-            datasets['region_centroids'].append(regionCentroids)
             datasets['analysis'].append(analysis)
-    else:
-        import scipy.io as sio
 
-        image_data = []
-        for filenameIdx in range(len(gis_input_filenames_mat)):
-            mat_data = {}
-            img_filename_mat = home_folder + 'data/' + gis_input_filenames_mat[filenameIdx]
-            mat_data = sio.loadmat(img_filename_mat, squeeze_me=True)
-            image_data.append(mat_data['geotiff_data'])
-
-        image_labels = []
-        for filenameIdx in range(len(gis_input_gt_filenames_mat)):
-            mat_data = {}
-            img_gt_filename_mat = home_folder + 'data/' + gis_input_gt_filenames_mat[filenameIdx]
-            mat_data = sio.loadmat(img_gt_filename_mat, squeeze_me=True)
-            image_labels.append(mat_data['all_labels'])
-
-        datasets = {'data': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
-        for datasetIdx in range(len(image_data)):
-            # image = np.zeros((np.array(image_data[datasetIdx]).shape[0], np.array(image_data[datasetIdx]).shape[1], 3))
-            # image[:, :, 0] = image_data[datasetIdx]
-            # image[:, :, 1] = image_data[datasetIdx]
-            # image[:, :, 2] = image_data[datasetIdx]
-            image = image_data[datasetIdx][:, :, None]
-            datasets['data'].append(image)
-
-        for datasetIdx in range(len(image_data)):
-            #labelArr = datasets['labels']
-            for labelIdx in range(len(image_labels[datasetIdx].item())):   # A
-                regions = []
-                for regionIdx in range(len(image_labels[datasetIdx].item()[labelIdx])):   # B
-                    region_data = {'label_value': image_labels[datasetIdx].item()[labelIdx][regionIdx]['label_value'],
-                                   #'centroid': image_labels[datasetIdx].item()[labelIdx][regionIdx]['center'],
-                                   'centroid': np.mean(image_labels[datasetIdx].item()[labelIdx][regionIdx]['vertices'], 0),
-                                   'vertices': image_labels[datasetIdx].item()[labelIdx][regionIdx]['vertices'],
-                                   'ID': image_labels[datasetIdx].item()[labelIdx][regionIdx]['ID']}
-                    regions.append(region_data)
-            #    if len(regions) > 0:
-            #        labelArr.append(regions)
-                datasets['region_centroids'].append(np.asarray([region_data['centroid'] for region_data in regions]))
-                datasets['num_regions'].append(len(datasets['region_centroids'][datasetIdx]))
-                image_shape = image_data[datasetIdx].shape
-                mask = np.zeros(image_shape)
-                for i in range(len(regions)):
-                    cv2.fillPoly(mask, np.int32([regions[i]['vertices']]), (1,1,1))
-
-                datasets['labels'].append(mask.astype(np.uint8)[:,:,None])
-                analysis = cv2.connectedComponentsWithStats(datasets['labels'][datasetIdx], cv2.CV_32S)
-                (totalLabels, label_img, regionStats, regionCentroids) = analysis
-                datasets['analysis'].append(analysis)
-
-        num_datasets = len(datasets['data'])
+    num_datasets = len(datasets['data'])
 
     # this will store all of our data for all datasets and their components which consist of the data split into
     # training, validation and testing sets
@@ -515,6 +351,8 @@ if __name__ == "__main__":
 
                     aug_image_patch = getRigidImagePatch(datasets['data'][datasetIdx],
                                                          IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle)
+                    aug_image_patch_hs = getRigidImagePatch(datasets['data_hs'][datasetIdx],
+                                                         IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle)
                     aug_mask_patch = getRigidImagePatch(datasets['labels'][datasetIdx],
                                                         IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle)
 
@@ -524,7 +362,8 @@ if __name__ == "__main__":
                         dataArray.append(aug_image_patch)
                         labelArray.append(aug_mask_patch)
                         if SHOW_AUGMENTATION:
-                            handle[0].imshow(aug_image_patch, cmap='gray')
+                            handle[0].imshow(aug_image_patch_hs, cmap='gray')
+                            # handle[0].imshow(aug_image_patch, cmap='gray')
                             handle[1].imshow(aug_mask_patch, cmap='gray')
                             plt.pause(0.5)
 
@@ -556,7 +395,7 @@ if __name__ == "__main__":
     print("Test " + str(test_images.shape[0]))
 
     # show a collection of images from the training set
-    get_sample_display_multiple_img(train_images, train_labels, n=5)
+    # get_sample_display_multiple_img(train_images, train_labels, n=5)
 
     # setup input and output images for the neural net
     X_train = train_images
@@ -586,10 +425,9 @@ if __name__ == "__main__":
     sm.set_framework('tf.keras')
     sm.framework()
 
-    dice_loss = sm.losses.DiceLoss(class_weights=np.array([.5, .5]))
-    focal_loss = sm.losses.CategoricalFocalLoss()
-    total_loss = dice_loss + (1 * focal_loss)
-    metrics = [total_loss, sm.metrics.IOUScore(threshold=0.5), sm.metrics.FScore(threshold=0.5)]
+    metrics = [HybridDiceAndFocalLoss(),
+               sm.metrics.IOUScore(threshold=0.5),
+               sm.metrics.FScore(threshold=0.5)]
 
     save_results = home_folder + results_folder + trial_folder
 
@@ -647,12 +485,15 @@ if __name__ == "__main__":
     execution_time_Unet = stop1 - start1
     print("UNet execution time is: ", execution_time_Unet)
 
-    unet_model.save(save_results + model_filename)
-
+    save_model(model=unet_model, filepath=save_results + model_filename)
     # loss, acc = unet_model.evaluate(X_test)
     # print("Accuracy", acc)
 
-    unet_model.load_weights(save_results + model_filename)
+    unet_model = load_model(filepath=save_results + model_filename,
+                            custom_objects={"hybrid_dice_and_focal_loss": metrics[0],
+                                            "iou_score": metrics[1],
+                                            "f1-score": metrics[2]})
+
     Y_validate_predicted = unet_model.predict(X_validate)
     Y_validate_predicted_argmax = np.argmax(Y_validate_predicted, axis=3)
 
