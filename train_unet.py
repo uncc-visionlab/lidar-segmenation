@@ -14,7 +14,6 @@ import numpy as np
 import matplotlib
 matplotlib.use('tkagg')
 from matplotlib import pyplot as plt
-from patchify import patchify, unpatchify
 import pickle
 import random
 import tensorflow as tf
@@ -76,10 +75,11 @@ def getRigidImagePatch(img, height, width, center_y, center_x, angle):
             np.any(xy_end < 0) or xy_end[0] > img.shape[1] or xy_end[1] > img.shape[0]:
         # print("Could not extract patch at location (" + str((center_x, center_y)) + ")")
         return None
-    cropped_image_patch = img[xy_start[0]:xy_end[0], xy_start[1]:xy_end[1], :]
+    cropped_image_patch = img[xy_start[1]:xy_end[1], xy_start[0]:xy_end[0], :]
     cropped_height = cropped_image_patch.shape[0]
     cropped_width = cropped_image_patch.shape[1]
-
+    #if cropped_height != height or cropped_width != width:
+    #    return None
     # xy_rotation_centerpt = np.array([width / 2, height / 2])
     xy_translation = np.array([0.5 * (cropped_width - (cos_t * cropped_width + sin_t * cropped_height)),
                                0.5 * (cropped_height - (-sin_t * cropped_width + cos_t * cropped_height))])
@@ -175,8 +175,9 @@ if __name__ == "__main__":
 
     # Image augmentation settings
     NUM_AUGMENTATIONS_PER_IMAGE = 100
-    SHOW_AUGMENTATION = True
-    # SHOW_AUGMENTATION = False
+    NUM_RANDOM_AUGMENTATIONS = 500
+    # SHOW_AUGMENTATION = True
+    SHOW_AUGMENTATION = False
 
     # split the data within each image test/train
     # test 20%
@@ -322,14 +323,51 @@ if __name__ == "__main__":
         for dataset in dataset_components:
             dataArray = dataset_components[dataset]['data']
             labelArray = dataset_components[dataset]['labels']
+            [rows, cols] = datasets['data'][datasetIdx].shape[0:2]
+            for augmentationIdx in range (NUM_RANDOM_AUGMENTATIONS):
+                angle = np.random.uniform(low=0, high=359.9)
+                center_y, center_x = (np.random.uniform(low=0, high=rows), np.random.uniform(low=0, high=cols))
+                aug_image_center = np.array([center_x, center_y], dtype=np.float32)
+
+                skip_this_image = False
+                # do not test for proximity when augmenting the testing dataset
+                if dataset != 'test':
+                    for testRegionIdx in range(dataset_numTestRegions):
+                        aug_image_center_to_testRegion_vector = dataset_testRegionCentroidArray[
+                                                                    testRegionIdx] - aug_image_center
+                        train_to_test_Distance = np.linalg.norm(aug_image_center_to_testRegion_vector)
+                        if train_to_test_Distance < 1.5 * IMAGE_SIZE * np.sqrt(2) + 21:
+                            print("Skip augmentation at image center (" + str(aug_image_center_to_testRegion_vector)
+                                  + ")" + " distance to test set = " + str(train_to_test_Distance))
+                            skip_this_image = True
+                            continue
+                if skip_this_image:
+                    continue
+
+                aug_image_patch = getRigidImagePatch(datasets['data'][datasetIdx],
+                                                     IMAGE_SIZE, IMAGE_SIZE, center_y, center_x, angle)
+                aug_image_patch_hs = getRigidImagePatch(datasets['data_hs'][datasetIdx],
+                                                     IMAGE_SIZE, IMAGE_SIZE, center_y, center_x, angle)
+                aug_mask_patch = getRigidImagePatch(datasets['labels'][datasetIdx],
+                                                    IMAGE_SIZE, IMAGE_SIZE, center_y, center_x, angle)
+                if aug_image_patch is not None:
+                    aug_image_patch = np.array(aug_image_patch, dtype=np.float32) / 255.0
+                    dataArray.append(aug_image_patch)
+                    labelArray.append(aug_mask_patch)
+                    if SHOW_AUGMENTATION:
+                        handle[0].imshow(aug_image_patch_hs, cmap='gray')
+                        # handle[0].imshow(aug_image_patch, cmap='gray')
+                        handle[1].imshow(aug_mask_patch, cmap='gray')
+                        plt.pause(0.5)
+
             for regionIndex in range(dataset_components[dataset]['num_regions']):
                 for augmentationIdx in range(NUM_AUGMENTATIONS_PER_IMAGE):
                     # randomly perturb the orientation
                     angle = np.random.uniform(low=0, high=359.9)
                     center_y, center_x = dataset_components[dataset]['region_centroids'][regionIndex]
                     # randomly perturb the offset of the region within the tile
-                    dx = 0  # np.random.uniform(low=-30, high=30)
-                    dy = 0  # np.random.uniform(low=-30, high=30)
+                    dx = np.random.uniform(low=-50, high=50)
+                    dy = np.random.uniform(low=-50, high=50)
                     aug_image_center = np.array([center_x + dx, center_y + dy], dtype=np.float32)
                     skip_this_image = False
 
@@ -367,6 +405,7 @@ if __name__ == "__main__":
                             # handle[0].imshow(aug_image_patch, cmap='gray')
                             handle[1].imshow(aug_mask_patch, cmap='gray')
                             plt.pause(0.5)
+
 
     # form the training, testing and validation datasets from available labeled image data
     train_images = np.concatenate((augmentation_data[0]['train']['data'],
