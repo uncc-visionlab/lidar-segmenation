@@ -150,7 +150,6 @@ class HybridDiceAndFocalLoss:
     def __init__(self):
         self.dice_loss = sm.losses.DiceLoss(class_weights=np.array([.5, .5]))
         self.focal_loss = sm.losses.CategoricalFocalLoss()
-        total_loss = self.dice_loss + (1 * self.focal_loss)
         self._name = 'hybrid_dice_and_focal_loss'
     @property
     def __name__(self):
@@ -174,7 +173,7 @@ if __name__ == "__main__":
     IMAGE_SIZE = 128
 
     # Image augmentation settings
-    NUM_AUGMENTATIONS_PER_IMAGE = 100
+    NUM_AUGMENTATIONS_PER_LABELED_REGION = 70
     NUM_RANDOM_AUGMENTATIONS = 500
     # SHOW_AUGMENTATION = True
     SHOW_AUGMENTATION = False
@@ -230,9 +229,6 @@ if __name__ == "__main__":
     datasets = {'data': [], 'data_hs': [], 'labels': [], 'region_centroids': [], 'num_regions': [], 'analysis': []}
     for datasetIdx in range(len(image_data)):
         # image = np.zeros((np.array(image_data[datasetIdx]).shape[0], np.array(image_data[datasetIdx]).shape[1], 3))
-        # image[:, :, 0] = image_data[datasetIdx]
-        # image[:, :, 1] = image_data[datasetIdx]
-        # image[:, :, 2] = image_data[datasetIdx]
         image = image_data[datasetIdx][:, :, None]
         datasets['data'].append(image)
         image_hs = image_data_hs[datasetIdx]
@@ -307,19 +303,19 @@ if __name__ == "__main__":
             for localRegionIndex in range(dataset['num_region_idxs']):
                 globalRegionIndex = dataset['indices'][localRegionIndex]
                 (totalLabels, label_img, regionStats, regionCentroids) = datasets['analysis'][datasetIdx]
-                # ensure that the connected component corresponds to a specific size/area region
-                # if regionStats[globalRegionIndex][2] == 40 and regionStats[globalRegionIndex][3] == 40:
-                    # if regionStats[globalRegionIndex][2] * regionStats[globalRegionIndex][3] > 900:
                 regionCentroidArray.append(datasets['region_centroids'][datasetIdx][globalRegionIndex])
             dataset['num_regions'] = len(regionCentroidArray)
 
     if SHOW_AUGMENTATION:
         figure, handle = plt.subplots(nrows=1, ncols=2, figsize=(6, 4))
 
+    # iterate through the available datasets
     for datasetIdx in range(num_datasets):
         dataset_components = augmentation_data[datasetIdx]
         dataset_testRegionCentroidArray = dataset_components['test']['region_centroids']
         dataset_numTestRegions = len(dataset_testRegionCentroidArray)
+
+        #  iterate through test, train and validate components of dataset
         for dataset in dataset_components:
             dataArray = dataset_components[dataset]['data']
             labelArray = dataset_components[dataset]['labels']
@@ -361,13 +357,13 @@ if __name__ == "__main__":
                         plt.pause(0.5)
 
             for regionIndex in range(dataset_components[dataset]['num_regions']):
-                for augmentationIdx in range(NUM_AUGMENTATIONS_PER_IMAGE):
+                for augmentationIdx in range(NUM_AUGMENTATIONS_PER_LABELED_REGION):
                     # randomly perturb the orientation
                     angle = np.random.uniform(low=0, high=359.9)
-                    center_y, center_x = dataset_components[dataset]['region_centroids'][regionIndex]
+                    center_x, center_y = dataset_components[dataset]['region_centroids'][regionIndex]
                     # randomly perturb the offset of the region within the tile
-                    dx = np.random.uniform(low=-50, high=50)
-                    dy = np.random.uniform(low=-50, high=50)
+                    dx = np.random.uniform(low=-70, high=70)
+                    dy = np.random.uniform(low=-70, high=70)
                     aug_image_center = np.array([center_x + dx, center_y + dy], dtype=np.float32)
                     skip_this_image = False
 
@@ -501,6 +497,7 @@ if __name__ == "__main__":
     # Initialize the SaveImage class by passing the arguments to the __init__() function
     save_image_call = SaveImage(
         # SaveImage will only evaluate 4 images from training and validation sets
+        # (X_train.take(range(0,5), axis=0), Y_train.take(range(0,5), axis=0)),
         (X_train.take([0, 10], axis=0), Y_train.take([0, 10], axis=0)),
         (X_validate.take([0, 10], axis=0), Y_validate.take([0, 10], axis=0)),
         unet_model,  # generator
