@@ -124,13 +124,17 @@ class SaveImage(keras.callbacks.Callback):
                 y = imgs[1][i]  # label
                 # Select only the first image of the batch -> None keeps the batch dimension so that the generator doesn't raise an exception
                 x = x[None, ...]
-                y = y[None, ...]
+                x_norm = (x - np.min(x)) / (np.max(x) - np.min(x))
+
                 out = g(x)
-                out = np.argmax(out, axis=3)
+                num_classes = out.shape[3]
+                out = np.argmax(out, axis=3) / (num_classes - 1)
                 out = out[..., None]
 
+                y = y[None, ...] / (num_classes - 1)
+
                 # Concatenate vertically input (x), output (out) and ground truth (y) to display the 3 images
-                cat_image = np.concatenate((x.squeeze(axis=0), out.squeeze(axis=0), y.squeeze(axis=0)), axis=1)  # np.squeeze deletes the batch dimension
+                cat_image = np.concatenate((x_norm.squeeze(axis=0), out.squeeze(axis=0), y.squeeze(axis=0)), axis=1)  # np.squeeze deletes the batch dimension
                 #cat_image_uint8 = (cat_image * 255).astype('uint8')
                 l.append(cat_image)
             return l
@@ -169,7 +173,7 @@ if __name__ == "__main__":
     #  tensorboard --logdir logs --reload_multifile=true
     #
     BATCH_SIZE = 100
-    NUM_EPOCHS = 250
+    NUM_EPOCHS = 500
     IMAGE_SIZE = 128
 
     # Image augmentation settings
@@ -513,7 +517,7 @@ if __name__ == "__main__":
     save_image_call = SaveImage(
         # SaveImage will only evaluate 4 images from training and validation sets
         (X_train.take(range(0,30), axis=0), Y_train.take(range(0,30), axis=0)),
-        (X_train.take(range(0,30), axis=0), Y_train.take(range(0,30), axis=0)),
+        (X_validate.take(range(0,30), axis=0), Y_validate.take(range(0,30), axis=0)),
         unet_model,  # generator
         log_dir)
 
