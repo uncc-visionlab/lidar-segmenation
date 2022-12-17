@@ -351,7 +351,8 @@ if __name__ == "__main__":
                 aug_mask_patch = getRigidImagePatch(datasets['labels'][datasetIdx],
                                                     IMAGE_SIZE, IMAGE_SIZE, center_y, center_x, angle)
                 if aug_image_patch is not None:
-                    aug_image_patch = np.array(aug_image_patch, dtype=np.float32) / 255.0
+                    aug_image_patch = (aug_image_patch - np.min(aug_image_patch)) / (np.max(aug_image_patch) - np.min(aug_image_patch))
+                    aug_image_patch = np.array(aug_image_patch, dtype=np.float32)
                     dataArray.append(aug_image_patch)
                     labelArray.append(aug_mask_patch)
                     if SHOW_AUGMENTATION:
@@ -397,7 +398,8 @@ if __name__ == "__main__":
 
                     # if the augmentation was successful add it to the image augmentation dataset
                     if aug_image_patch is not None:
-                        aug_image_patch = np.array(aug_image_patch, dtype=np.float32) / 255.0
+                        aug_image_patch = (aug_image_patch - np.min(aug_image_patch)) / (np.max(aug_image_patch) - np.min(aug_image_patch))
+                        aug_image_patch = np.array(aug_image_patch, dtype=np.float32)
                         dataArray.append(aug_image_patch)
                         labelArray.append(aug_mask_patch)
                         if SHOW_AUGMENTATION:

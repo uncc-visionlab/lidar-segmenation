@@ -156,7 +156,8 @@ if __name__ == "__main__":
                                             "f1-score": metrics[2]})
     INPUT_LAYER_DIMS = unet_model.input.shape[1:4]
 
-    data_filename = home_folder + results_folder + trial_folder + testing_filename
+    # data_filename = home_folder + results_folder + trial_folder + testing_filename
+    data_filename = home_folder + results_folder + trial_folder + training_filename
     # do_inference_on_pickled_data(data_filename, unet_model)
 
     gis_data_path = ['data/KOM/raw/', 'data/MLS/raw/', 'data/UCB/raw/']
@@ -174,7 +175,7 @@ if __name__ == "__main__":
     #     image_data_hs_ex = cv2.imread(gis_input_filenames_hs[0])
     #     image_data_hs.append(image_data_hs_ex)
 
-    DATASET_INDEX = 0
+    DATASET_INDEX = 2
     # SHOW_CLASSIFICATIONS = True
     SHOW_CLASSIFICATIONS = False
 
@@ -185,7 +186,7 @@ if __name__ == "__main__":
     image_data_hs = cv2.imread(img_filename_hs)
 
     [rows, cols] = image_data.shape[0:2]
-    xy_pixel_skip = (100, 100)
+    xy_pixel_skip = (32, 32)
     xy_pixel_margin = np.array([np.round((INPUT_LAYER_DIMS[1] + 1) / 2), np.round((INPUT_LAYER_DIMS[0] + 1) / 2)],
                                dtype=np.int)
 
@@ -201,6 +202,9 @@ if __name__ == "__main__":
     if SHOW_CLASSIFICATIONS:
         figure, ax = plt.subplots(nrows=n, ncols=2, figsize=(8, n * 2))
 
+    output_shape = unet_model.output.get_shape().as_list()
+    num_classes = output_shape[3]
+    label_image_predicted = np.zeros((image_data.shape[0],image_data.shape[1],int(num_classes)), dtype=np.float32)
     label_image = np.zeros(image_data.shape, dtype=np.float32)
     classification_count_image = np.zeros(image_data.shape, dtype=np.float32)
 
@@ -211,18 +215,22 @@ if __name__ == "__main__":
                          (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])]
             test_image_hs = image_data_hs[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
                          (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])]
+            test_image = (test_image - np.min(test_image)) / (np.max(test_image) - np.min(test_image))
             input_test_image = np.expand_dims(test_image, axis=0)
             input_test_image = np.expand_dims(input_test_image, axis=3)
             test_image_predicted = unet_model.predict(input_test_image)
-            test_image_predicted_argmax = np.argmax(test_image_predicted, axis=3)
 
-            label_image[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
-            (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])] += test_image_predicted_argmax[0]
+            label_image_predicted[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
+            (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])] += test_image_predicted[0]
 
-            classification_count_image[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
-            (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])] += 1
+            # label_image[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
+            # (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])] += test_image_predicted_argmax[0]
+
+            # classification_count_image[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
+            # (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])] += 1
 
             if SHOW_CLASSIFICATIONS:
+                test_image_predicted_argmax = np.argmax(test_image_predicted, axis=3) / (num_classes - 1)
                 # ax.ravel()[0].imshow(test_image, cmap='gray')
                 ax.ravel()[0].imshow(test_image_hs, cmap='gray')
                 ax.ravel()[0].set_title("Hillshade Image: " + "(" + str(x) + ", " + str(y) + ")")
@@ -232,10 +240,11 @@ if __name__ == "__main__":
                 plt.pause(0.1)
 
 
-    for y in range(0, rows):
-        for x in range(0, cols):
-            if classification_count_image[y,x] > 0:
-                label_image[y,x] = label_image[y,x] / classification_count_image[y,x]
+    # for y in range(0, rows):
+    #     for x in range(0, cols):
+    #         if classification_count_image[y,x] > 0:
+    #             label_image[y,x] = label_image[y,x] / classification_count_image[y,x]
+    label_image = np.argmax(label_image_predicted, axis=2) / (num_classes - 1)
 
     figure, bx = plt.subplots(nrows=n, ncols=2, figsize=(8, n * 2))
     # bx.ravel()[0].imshow(image_data, cmap='gray')
