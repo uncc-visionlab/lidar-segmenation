@@ -119,7 +119,7 @@ class SaveImage(keras.callbacks.Callback):
         # Function to generate batch of images. Returns a list (l) with the 3-image display (input, generated, ground truth)
         def generate_imgs(g, imgs):
             l = []
-            for i in range(len(imgs)):
+            for i in range(len(imgs[0])):
                 x = imgs[0][i]  # data
                 y = imgs[1][i]  # label
                 # Select only the first image of the batch -> None keeps the batch dimension so that the generator doesn't raise an exception
@@ -410,20 +410,35 @@ if __name__ == "__main__":
     train_labels = np.concatenate((augmentation_data[0]['train']['labels'],
                                    augmentation_data[1]['train']['labels'],
                                    augmentation_data[2]['train']['labels']))
-
     validate_images = np.concatenate((augmentation_data[0]['validate']['data'],
                                       augmentation_data[1]['validate']['data'],
                                       augmentation_data[2]['validate']['data']))
     validate_labels = np.concatenate((augmentation_data[0]['validate']['labels'],
                                       augmentation_data[1]['validate']['labels'],
                                       augmentation_data[2]['validate']['labels']))
-
     test_images = np.concatenate((augmentation_data[0]['test']['data'],
                                   augmentation_data[1]['test']['data'],
                                   augmentation_data[2]['test']['data']))
     test_labels = np.concatenate((augmentation_data[0]['test']['labels'],
                                   augmentation_data[1]['test']['labels'],
                                   augmentation_data[2]['test']['labels']))
+
+    from random import shuffle
+
+    ind_list = [i for i in range(train_images.shape[0])]
+    shuffle(ind_list)
+    train_images = train_images[ind_list, :, :]
+    train_labels = train_labels[ind_list, :, :]
+
+    ind_list = [i for i in range(validate_images.shape[0])]
+    shuffle(ind_list)
+    validate_images = validate_images[ind_list, :, :]
+    validate_labels = validate_labels[ind_list, :, :]
+
+    ind_list = [i for i in range(test_images.shape[0])]
+    shuffle(ind_list)
+    test_images = test_images[ind_list, :, :]
+    test_labels = test_labels[ind_list, :, :]
 
     # print out the number of training vectors, validation vectors, and test vectors
     print("Train " + str(train_images.shape[0]))
@@ -497,9 +512,8 @@ if __name__ == "__main__":
     # Initialize the SaveImage class by passing the arguments to the __init__() function
     save_image_call = SaveImage(
         # SaveImage will only evaluate 4 images from training and validation sets
-        # (X_train.take(range(0,5), axis=0), Y_train.take(range(0,5), axis=0)),
-        (X_train.take([0, 10], axis=0), Y_train.take([0, 10], axis=0)),
-        (X_validate.take([0, 10], axis=0), Y_validate.take([0, 10], axis=0)),
+        (X_train.take(range(0,30), axis=0), Y_train.take(range(0,30), axis=0)),
+        (X_train.take(range(0,30), axis=0), Y_train.take(range(0,30), axis=0)),
         unet_model,  # generator
         log_dir)
 
