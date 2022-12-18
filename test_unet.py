@@ -10,7 +10,7 @@ import numpy as np
 import pickle
 import random
 import matplotlib
-
+import h5py
 matplotlib.use('tkagg')
 from matplotlib import pyplot as plt
 # import keras
@@ -160,14 +160,22 @@ if __name__ == "__main__":
     data_filename = home_folder + results_folder + trial_folder + training_filename
     # do_inference_on_pickled_data(data_filename, unet_model)
 
-    gis_data_path = ['data/KOM/raw/', 'data/MLS/raw/', 'data/UCB/raw/']
+    gis_data_path = ['data/KOM/raw/', 'data/MLS/raw/', 'data/UCB/raw/', 'data/Sayil/']
+
     gis_input_filenames_hs = ['kom_dsm_lidar_hs.png',
                               'MLS_DEM_hs.png',
-                              'UCB_elev_adjusted_hs.png']
+                              'UCB_elev_adjusted_hs.png',
+                              'Sayil_regional_DEM_hs.png']
+
+    gis_output_filenames = ['KeOM_image_classified.png',
+                            'MLS_image_classified.png',
+                            'UCB_image_classified.png',
+                            'Sayil_image_classified.png']
 
     gis_input_filenames_mat = ['KOM_image_data.mat',
                                'MLS_image_data.mat',
-                               'UCB_image_data.mat']
+                               'UCB_image_data.mat',
+                               'Sayil_image_data.mat']
 
     # image_data_hs = []
     # for datasetIdx in range(len(gis_input_filenames_mat)):
@@ -175,13 +183,22 @@ if __name__ == "__main__":
     #     image_data_hs_ex = cv2.imread(gis_input_filenames_hs[0])
     #     image_data_hs.append(image_data_hs_ex)
 
-    DATASET_INDEX = 2
+    DATASET_INDEX = 3
     # SHOW_CLASSIFICATIONS = True
     SHOW_CLASSIFICATIONS = False
 
+
     img_filename_mat = home_folder + 'data/' + gis_input_filenames_mat[DATASET_INDEX]
-    mat_data = sio.loadmat(img_filename_mat, squeeze_me=True)
-    image_data = mat_data['geotiff_data']
+    mat_data = []
+    if DATASET_INDEX == 3:
+        with h5py.File(img_filename_mat, 'r') as f:
+            # print(f.keys())
+            image_data = np.array(f['geotiff_data'])
+    else:
+        mat_data = sio.loadmat(img_filename_mat, squeeze_me=True)
+        image_data = mat_data['geotiff_data']
+
+    output_filename = home_folder + results_folder + gis_output_filenames[DATASET_INDEX]
     img_filename_hs = home_folder + gis_data_path[DATASET_INDEX] + gis_input_filenames_hs[DATASET_INDEX]
     image_data_hs = cv2.imread(img_filename_hs)
 
@@ -215,7 +232,10 @@ if __name__ == "__main__":
                          (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])]
             test_image_hs = image_data_hs[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
                          (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])]
-            test_image = (test_image - np.min(test_image)) / (np.max(test_image) - np.min(test_image))
+            image_range = (np.max(test_image) - np.min(test_image))
+            if image_range == 0:
+                image_range = 1
+            test_image = (test_image - np.min(test_image)) / image_range
             input_test_image = np.expand_dims(test_image, axis=0)
             input_test_image = np.expand_dims(input_test_image, axis=3)
             test_image_predicted = unet_model.predict(input_test_image)
@@ -245,7 +265,7 @@ if __name__ == "__main__":
     #         if classification_count_image[y,x] > 0:
     #             label_image[y,x] = label_image[y,x] / classification_count_image[y,x]
     label_image = np.argmax(label_image_predicted, axis=2) / (num_classes - 1)
-
+    cv2.imwrite(output_filename, np.array(label_image*255, dtype=np.uint8))
     figure, bx = plt.subplots(nrows=n, ncols=2, figsize=(8, n * 2))
     # bx.ravel()[0].imshow(image_data, cmap='gray')
     bx.ravel()[0].imshow(image_data_hs, cmap='gray')
