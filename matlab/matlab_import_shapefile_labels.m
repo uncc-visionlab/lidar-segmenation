@@ -20,10 +20,10 @@ region(2).LabelValue = 2;
 switch DATASETINDEX
     case 1
         gis_geotiff_filename = 'KOM/raw/kom_dsm_lidar.tif';
-        importData(1).filename = 'KOM/raw/Kom_Annular_strs.shp';
+        importData(1).filename = 'data/Kom_annulars_outline.shp';
         importData(1).labelValue = 1;
-        importData(2).filename = 'KOM/raw/Kom_Platforms_strs.shp';
-        importData(2).labelValue = 1;
+        importData(2).filename = 'data/Kom_platforms_outline.shp';
+        importData(2).labelValue = 2;
         gis_output_filename = 'KOM/raw/kom_dsm_lidar.png';
         gis_output_hillshade_filename = 'KOM/raw/kom_dsm_lidar_hs.png';
         gis_output_gt_filename = 'KOM/raw/kom_dsm_lidar_gt.png';
@@ -32,9 +32,9 @@ switch DATASETINDEX
         
     case 2
         gis_geotiff_filename = 'MLS/raw/MLS_DEM.tif';
-        importData(1).filename = 'MLS/raw/MLS_Annular_strs.shp';
+        importData(1).filename = 'data/MLS_Annulars_outline_v2.shp';
         importData(1).labelValue = 1;
-        importData(2).filename = './MLS_platforms_all_outline.shp';
+        importData(2).filename = 'data/MLS_platforms_all_outline.shp';
         importData(2).labelValue = 2;
         gis_output_filename = 'MLS/raw/MLS_DEM.png';
         gis_output_hillshade_filename = 'MLS/raw/MLS_DEM_hs.png';
@@ -44,10 +44,10 @@ switch DATASETINDEX
         
     case 3
         gis_geotiff_filename = 'UCB/raw/UCB_elev_adjusted.tif';
-        importData(1).filename = 'UCB/raw/UBM_anulares.shp';
+        importData(1).filename = 'data/UBM_annulars_outline.shp';
         importData(1).labelValue = 1;
-        importData(2).filename = 'UCB/raw/UBM_platforms_outline.shp';
-        importData(2).labelValue = 2;
+%         importData(2).filename = 'UCB/raw/UBM_platforms_outline.shp';
+%         importData(2).labelValue = 2;
         gis_output_filename = 'UCB/raw/UCB_elev_adjusted.png';
         gis_output_hillshade_filename = 'UCB/raw/UCB_elev_adjusted_hs.png';
         gis_output_gt_filename = 'UCB/raw/UCB_elev_adjusted_gt.png';
@@ -97,7 +97,7 @@ figure(4), imshow(image_geo_hillshade_output);
 
 % write a for loop to iterate two classes. If only one classes is
 % considered, set the iteration range to accomendate.
-for shapefileIndex=2:length(importData)     % 1 is annular structure; 2 is platform.
+for shapefileIndex=1:length(importData)-1     % 1 is annular structure; 2 is platform.    
     gis_esri_shapefilename = importData(shapefileIndex).filename;
     shapefile_structure = shapeinfo(gis_esri_shapefilename);
     shapefile_data = shaperead(gis_esri_shapefilename);
@@ -113,14 +113,15 @@ for shapefileIndex=2:length(importData)     % 1 is annular structure; 2 is platf
     range_y = geotiff_info.SpatialRef.YWorldLimits(2) - geotiff_info.SpatialRef.YWorldLimits(1);
 
 
-
-    if (exist('all_labels','var') == 0)
-        labelInfo = struct('ID', {}, 'label_value', {}, 'label_name', {}, 'vertices', {}, 'center', {});
+    labelInfo = struct('ID', {}, 'label_value', {}, 'label_name', {}, 'vertices', {}, 'center', {});
         newRegionIdx = 1;   % start to write data from the beginning if labelInfo is emtpy
-    else
-        labelInfo = all_labels(shapefileIndex).labels;
-        newRegionIdx = length(shapefile_data)+1;  % append the data to the end
-    end
+%     if (exist('all_labels','var') == 0)
+%         labelInfo = struct('ID', {}, 'label_value', {}, 'label_name', {}, 'vertices', {}, 'center', {});
+%         newRegionIdx = 1;   % start to write data from the beginning if labelInfo is emtpy
+%     else
+%         labelInfo = all_labels(shapefileIndex).labels;
+%         newRegionIdx = length(shapefile_data)+1;  % append the data to the end
+%     end
 
     for regionIdx=1:length(shapefile_data) %110
         coords_x = image_size(2)*(shapefile_data(regionIdx).X - x0)./range_x;
