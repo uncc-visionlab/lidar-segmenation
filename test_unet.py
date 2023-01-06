@@ -160,14 +160,14 @@ if __name__ == "__main__":
     data_filename = home_folder + results_folder + trial_folder + training_filename
     # do_inference_on_pickled_data(data_filename, unet_model)
 
-    gis_data_path = ['data/KOM/raw/', 'data/MLS/raw/', 'data/UCB/raw/', 'data/Sayil/']
+    gis_data_path = ['data/KOM/', 'data/MLS/', 'data/UCB/', 'data/Sayil/']
 
     gis_input_filenames_hs = ['kom_dsm_lidar_hs.png',
                               'MLS_DEM_hs.png',
                               'UCB_elev_adjusted_hs.png',
                               'Sayil_regional_DEM_hs.png']
 
-    gis_output_filenames = ['KeOM_image_classified.png',
+    gis_output_filenames = ['KOM_image_classified.png',
                             'MLS_image_classified.png',
                             'UCB_image_classified.png',
                             'Sayil_image_classified.png']

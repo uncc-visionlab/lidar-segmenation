@@ -19,38 +19,38 @@ region(2).LabelValue = 2;
 
 switch DATASETINDEX
     case 1
-        gis_geotiff_filename = 'KOM/raw/kom_dsm_lidar.tif';
-        importData(1).filename = 'data/Kom_annulars_outline.shp';
+        gis_geotiff_filename = 'KOM/kom_dsm_lidar.tif';
+        importData(1).filename = 'KOM/Kom_annulars_outline.shp';
         importData(1).labelValue = 1;
-        importData(2).filename = 'data/Kom_platforms_outline.shp';
+        importData(2).filename = 'KOM/Kom_platforms_outline.shp';
         importData(2).labelValue = 2;
-        gis_output_filename = 'KOM/raw/kom_dsm_lidar.png';
-        gis_output_hillshade_filename = 'KOM/raw/kom_dsm_lidar_hs.png';
-        gis_output_gt_filename = 'KOM/raw/kom_dsm_lidar_gt.png';
+        gis_output_filename = 'KOM/kom_dsm_lidar.png';
+        gis_output_hillshade_filename = 'KOM/kom_dsm_lidar_hs.png';
+        gis_output_gt_filename = 'KOM/kom_dsm_lidar_gt.png';
         matlab_data_filename = 'KOM_image_data.mat';
         matlab_gt_labels_all_filename = 'KOM_ground_truth_labels.mat';
         
     case 2
-        gis_geotiff_filename = 'MLS/raw/MLS_DEM.tif';
-        importData(1).filename = 'data/MLS_Annulars_outline_v2.shp';
+        gis_geotiff_filename = 'MLS/MLS_DEM.tif';
+        importData(1).filename = 'MLS/MLS_Annulars_outline_v2.shp';
         importData(1).labelValue = 1;
-        importData(2).filename = 'data/MLS_platforms_all_outline.shp';
+        importData(2).filename = 'MLS/MLS_platforms_all_outline.shp';
         importData(2).labelValue = 2;
-        gis_output_filename = 'MLS/raw/MLS_DEM.png';
-        gis_output_hillshade_filename = 'MLS/raw/MLS_DEM_hs.png';
-        gis_output_gt_filename = 'MLS/raw/MLS_DEM_gt.png';
+        gis_output_filename = 'MLS/MLS_DEM.png';
+        gis_output_hillshade_filename = 'MLS/MLS_DEM_hs.png';
+        gis_output_gt_filename = 'MLS/MLS_DEM_gt.png';
         matlab_data_filename = 'MLS_image_data.mat';
         matlab_gt_labels_all_filename = 'MLS_ground_truth_labels.mat'; % also change the exsiting gt mat file to be annulars
         
     case 3
-        gis_geotiff_filename = 'UCB/raw/UCB_elev_adjusted.tif';
-        importData(1).filename = 'data/UBM_annulars_outline.shp';
+        gis_geotiff_filename = 'UCB/UCB_elev_adjusted.tif';
+        importData(1).filename = 'UCB/UBM_annulars_outline.shp';
         importData(1).labelValue = 1;
-%         importData(2).filename = 'UCB/raw/UBM_platforms_outline.shp';
-%         importData(2).labelValue = 2;
-        gis_output_filename = 'UCB/raw/UCB_elev_adjusted.png';
-        gis_output_hillshade_filename = 'UCB/raw/UCB_elev_adjusted_hs.png';
-        gis_output_gt_filename = 'UCB/raw/UCB_elev_adjusted_gt.png';
+        importData(2).filename = 'NONE';
+        importData(2).labelValue = 2;
+        gis_output_filename = 'UCB/UCB_elev_adjusted.png';
+        gis_output_hillshade_filename = 'UCB/UCB_elev_adjusted_hs.png';
+        gis_output_gt_filename = 'UCB/UCB_elev_adjusted_gt.png';
         matlab_data_filename = 'UCB_image_data.mat';
         matlab_gt_labels_all_filename = 'UCB_ground_truth_labels.mat';
         
@@ -63,13 +63,13 @@ geotiff_info = geotiffinfo(gis_geotiff_filename);
 geotiff_data = readgeoraster(gis_geotiff_filename);
 image_size = size(geotiff_data);
 
-if (strcmp(gis_geotiff_filename,'MLS/raw/MLS_DEM.tif') == 1 || ...
-        strcmp(gis_geotiff_filename,'KOM/raw/kom_dsm_lidar.tif') == 1)
+if (strcmp(gis_geotiff_filename,'MLS/MLS_DEM.tif') == 1 || ...
+        strcmp(gis_geotiff_filename,'KOM/kom_dsm_lidar.tif') == 1)
     bad_pixel_values = max(geotiff_data(:));
     artificial_min_value = min(geotiff_data(:))-0.1;
     geotiff_data(geotiff_data==bad_pixel_values)=artificial_min_value;
 end
-%save(matlab_data_filename, 'geotiff_data','-v7','-nocompression');
+save(matlab_data_filename, 'geotiff_data','-v7','-nocompression');
 
 if isfile(matlab_gt_labels_all_filename)
     load(matlab_gt_labels_all_filename);
@@ -97,12 +97,19 @@ figure(4), imshow(image_geo_hillshade_output);
 
 % write a for loop to iterate two classes. If only one classes is
 % considered, set the iteration range to accomendate.
-for shapefileIndex=1:length(importData)-1     % 1 is annular structure; 2 is platform.    
+for shapefileIndex=1:length(importData)     % 1 is annular structure; 2 is platform.    
     gis_esri_shapefilename = importData(shapefileIndex).filename;
-    shapefile_structure = shapeinfo(gis_esri_shapefilename);
-    shapefile_data = shaperead(gis_esri_shapefilename);
-    shp_range_x = shapefile_structure(1).BoundingBox(2,1) - shapefile_structure(1).BoundingBox(1,1);
-    shp_range_y = shapefile_structure(1).BoundingBox(2,2) - shapefile_structure(1).BoundingBox(1,2);
+    if(strcmp(gis_esri_shapefilename, "NONE") == 1)
+        labelInfo = struct('ID', {}, 'label_value', {}, 'label_name', {}, 'vertices', {}, 'center', {});
+        all_labels(shapefileIndex).labels = labelInfo;
+        continue;
+    else
+        shapefile_structure = shapeinfo(gis_esri_shapefilename);
+        shapefile_data = shaperead(gis_esri_shapefilename);
+        num_regions = length(shapefile_data);
+        shp_range_x = shapefile_structure(1).BoundingBox(2,1) - shapefile_structure(1).BoundingBox(1,1);
+        shp_range_y = shapefile_structure(1).BoundingBox(2,2) - shapefile_structure(1).BoundingBox(1,2);
+    end
 
     WINDOWSIZE = region(shapefileIndex).WINDOWSIZE;
 
@@ -113,17 +120,23 @@ for shapefileIndex=1:length(importData)-1     % 1 is annular structure; 2 is pla
     range_y = geotiff_info.SpatialRef.YWorldLimits(2) - geotiff_info.SpatialRef.YWorldLimits(1);
 
 
-    labelInfo = struct('ID', {}, 'label_value', {}, 'label_name', {}, 'vertices', {}, 'center', {});
+    %labelInfo = struct('ID', {}, 'label_value', {}, 'label_name', {}, 'vertices', {}, 'center', {});
+    %newRegionIdx = 1;   
+    % start to write data from the beginning if labelInfo is emtpy
+    if (exist('all_labels','var') == 0)
+        labelInfo = struct('ID', {}, 'label_value', {}, 'label_name', {}, 'vertices', {}, 'center', {});
         newRegionIdx = 1;   % start to write data from the beginning if labelInfo is emtpy
-%     if (exist('all_labels','var') == 0)
-%         labelInfo = struct('ID', {}, 'label_value', {}, 'label_name', {}, 'vertices', {}, 'center', {});
-%         newRegionIdx = 1;   % start to write data from the beginning if labelInfo is emtpy
-%     else
-%         labelInfo = all_labels(shapefileIndex).labels;
-%         newRegionIdx = length(shapefile_data)+1;  % append the data to the end
-%     end
+    else
+        if (length(all_labels) >= shapefileIndex)
+            labelInfo = all_labels(shapefileIndex).labels;
+            newRegionIdx = length(labelInfo) + 1;  % append the data to the end
+        else
+            labelInfo = struct('ID', {}, 'label_value', {}, 'label_name', {}, 'vertices', {}, 'center', {});
+            newRegionIdx = 1;   % start to write data from the beginning if labelInfo is emtpy
+        end            
+    end
 
-    for regionIdx=1:length(shapefile_data) %110
+    for regionIdx=1:num_regions
         coords_x = image_size(2)*(shapefile_data(regionIdx).X - x0)./range_x;
         coords_x(isnan(coords_x))=coords_x(1);
         coords_y = image_size(1)*(y0 - shapefile_data(regionIdx).Y)./range_y;
@@ -145,18 +158,19 @@ for shapefileIndex=1:length(importData)-1     % 1 is annular structure; 2 is pla
     %     labelInfo{regionIdx}.vertices = ones(num_vertices,1)*poly_origin + regionOfInterest.Position;
     %     labelInfo{regionIdx}.center = poly_origin + mean(labelInfo{regionIdx}.vertices,1);
 
-
         % if region size is 0 --> this is a point feature  
         if (prod(xy_region_range) == 0)
             fprintf(1,'Cannot import shapefile with point features.\n');
             return;
         end
 
+        % search for an existing record for this region
         matchFound = false;
         for matchedRegionIdx=1:length(labelInfo)
             %if (labelInfo(matchedRegionIdx).ID == xy_region_center_pixel_id)
             if (strcmp(labelInfo(matchedRegionIdx).ID, xy_region_center_pixel_id))
-                fprintf(1,'Replaced region data.\n');
+                str_out = sprintf('Replaced existing region data for ID = %s.\n', labelInfo(matchedRegionIdx).ID);
+                fprintf(1, str_out);
                 labelInfo(regionIdx).ID = xy_region_center_pixel_id;
                 labelInfo(regionIdx).label_value = region(shapefileIndex).LabelValue;
                 labelInfo(regionIdx).label_name = region(shapefileIndex).Name;
@@ -166,8 +180,10 @@ for shapefileIndex=1:length(importData)-1     % 1 is annular structure; 2 is pla
                 break;
             end
         end
+        
         if (~matchFound)
-            fprintf(1,'Added new region.\n');
+            str_out = sprintf('Added new region data for ID = %s.\n', xy_region_center_pixel_id);
+            fprintf(1, str_out);
             labelInfo(newRegionIdx).ID = xy_region_center_pixel_id;
             labelInfo(newRegionIdx).label_value = region(shapefileIndex).LabelValue;
             labelInfo(newRegionIdx).label_name = region(shapefileIndex).Name;
@@ -213,8 +229,8 @@ for shapefileIndex=1:length(importData)-1     % 1 is annular structure; 2 is pla
         %labelInfo = all_labels(shapefileIndex).labels;
 
     end
+    all_labels(shapefileIndex).labels = labelInfo;
 end
 
-all_labels(shapefileIndex).labels = labelInfo;
 save(matlab_gt_labels_all_filename, 'all_labels','-v7','-nocompression');
 

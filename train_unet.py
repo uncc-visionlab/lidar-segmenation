@@ -200,7 +200,7 @@ if __name__ == "__main__":
     testing_filename = 'data_testing.pkl'
     validation_filename = 'data_validation.pkl'
 
-    gis_data_path = ['data/KOM/raw/', 'data/MLS/raw/', 'data/UCB/raw/']
+    gis_data_path = ['data/KOM/', 'data/MLS/', 'data/UCB/']
     gis_input_filenames_hs = ['kom_dsm_lidar_hs.png',
                               'MLS_DEM_hs.png',
                               'UCB_elev_adjusted_hs.png']
@@ -240,15 +240,18 @@ if __name__ == "__main__":
 
     for datasetIdx in range(len(image_data)):
         #labelArr = datasets['labels']
-        for labelIdx in range(len(image_labels[datasetIdx].item())):   # A
+        # for labelIdx in range(len(image_labels[datasetIdx])):   # A
+        for labelIdx in range(1):  # A
             regions = []
-            for regionIdx in range(len(image_labels[datasetIdx].item()[labelIdx])):   # B
-                region_data = {'label_value': image_labels[datasetIdx].item()[labelIdx][regionIdx]['label_value'],
-                               #'centroid': image_labels[datasetIdx].item()[labelIdx][regionIdx]['center'],
-                               'centroid': np.mean(image_labels[datasetIdx].item()[labelIdx][regionIdx]['vertices'], 0),
-                               'vertices': image_labels[datasetIdx].item()[labelIdx][regionIdx]['vertices'],
-                               'ID': image_labels[datasetIdx].item()[labelIdx][regionIdx]['ID']}
+            print("label " + str(labelIdx))
+            for regionIdx in range(len(image_labels[datasetIdx][labelIdx][0])):   # B
+                region_data = {'label_value': image_labels[datasetIdx][labelIdx][0][regionIdx]['label_value'],
+                               #'centroid': image_labels[datasetIdx].item()[labelIdx][0][regionIdx]['center'],
+                               'centroid': np.mean(image_labels[datasetIdx][labelIdx][0][regionIdx]['vertices'], 0),
+                               'vertices': image_labels[datasetIdx][labelIdx][0][regionIdx]['vertices'],
+                               'ID': image_labels[datasetIdx][labelIdx][0][regionIdx]['ID']}
                 regions.append(region_data)
+                print("region " + str(regionIdx))
         #    if len(regions) > 0:
         #        labelArr.append(regions)
             datasets['region_centroids'].append(np.asarray([region_data['centroid'] for region_data in regions]))
