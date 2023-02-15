@@ -246,8 +246,8 @@ if __name__ == "__main__":
             # label_image[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
             # (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])] += test_image_predicted_argmax[0]
 
-            # classification_count_image[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
-            # (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])] += 1
+            classification_count_image[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
+            (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])] += 1
 
             if SHOW_CLASSIFICATIONS:
                 test_image_predicted_argmax = np.argmax(test_image_predicted, axis=3) / (num_classes - 1)
@@ -260,10 +260,10 @@ if __name__ == "__main__":
                 plt.pause(0.1)
 
 
-    # for y in range(0, rows):
-    #     for x in range(0, cols):
-    #         if classification_count_image[y,x] > 0:
-    #             label_image[y,x] = label_image[y,x] / classification_count_image[y,x]
+    for y in range(0, rows):
+        for x in range(0, cols):
+            if classification_count_image[y,x] > 0:
+                label_image[y,x] = label_image[y,x] / classification_count_image[y,x]
     label_image = np.argmax(label_image_predicted, axis=2) / (num_classes - 1)
     cv2.imwrite(output_filename, np.array(label_image*255, dtype=np.uint8))
     figure, bx = plt.subplots(nrows=n, ncols=2, figsize=(8, n * 2))
