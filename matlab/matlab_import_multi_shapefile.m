@@ -134,7 +134,7 @@ for shapefileIndex=1:length(importData)     % 1 is annular structure; 2 is platf
 
         %xy_region_center_pixel_id = round(xy_region_center(1)/20)*image_size(1) + round(xy_region_center(2)/20);
         xy_region_center_pixel_id = shapefile_data(regionIdx).Name;
-        xy_region_center_pixel_class = shapefile_data(regionIdx).class; %for bounding box2 ->class , bb1->Class
+        xy_region_center_pixel_class = shapefile_data(regionIdx).class+1; %for bounding box2 ->class , bb1->Class
         %xy_region_center_pixel_name = region(xy_region_center_pixel_class).Name
 
     %    poly_origin = [x_coord_list(1), y_coord_list(1)];
