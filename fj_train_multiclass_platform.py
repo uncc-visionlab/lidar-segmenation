@@ -350,6 +350,29 @@ def multi_unet_model(n_classes=16, IMG_HEIGHT=256, IMG_WIDTH=256, IMG_CHANNELS=1
     return model
 def get_model():
         return multi_unet_model(n_classes=16, IMG_HEIGHT=IMAGE_SIZE, IMG_WIDTH=IMAGE_SIZE, IMG_CHANNELS=IMG_CHANNELS)
+
+
+def remove_zero_images(x, y):
+    """
+    Remove images from x and y if any image from x does not contain any value except 0.
+
+    Args:
+        x (np.ndarray): Array of shape (n, 128, 128) containing images.
+        y (np.ndarray): Array of shape (n,) containing labels.
+
+    Returns:
+        Tuple of two np.ndarrays: The filtered x and y arrays.
+    """
+    # Find the indices of the images that don't contain any value except 0
+    zero_images = np.where(np.all(x == 0, axis=(1, 2)))[0]
+
+    # Remove the zero images from x and y
+    x_filtered = np.delete(x, zero_images, axis=0)
+    y_filtered = np.delete(y, zero_images, axis=0)
+
+    return x_filtered, y_filtered
+
+
 ################################################################
 if __name__ == "__main__":
 
@@ -366,10 +389,10 @@ if __name__ == "__main__":
     IMAGE_SIZE = 128
     # Image augmentation settings
     NUM_AUGMENTATIONS_PER_LABELED_REGION = 50
-    NUM_RANDOM_AUGMENTATIONS = 500
-    # SHOW_AUGMENTATION = True
+    NUM_RANDOM_AUGMENTATIONS = 20000
+    #SHOW_AUGMENTATION = True
     SHOW_AUGMENTATION = False
-
+    n_classes = 4
     # split the data within each image test/train
     # test 20%
     # merge all the train and split the training into train/validate
@@ -382,7 +405,7 @@ if __name__ == "__main__":
     # home_folder = '/home/arwillis/PyCharm/'
     home_folder = '../'
     results_folder = 'results/'
-    trial_folder = 'unet_multi_platform/test_1/'
+    trial_folder = 'unet_multi_platform/test_4_F_1/'
     model_filename = 'unet_model.hdf5'
     training_filename = 'data_training.pkl'
     testing_filename = 'data_testing.pkl'
@@ -493,20 +516,34 @@ if __name__ == "__main__":
     n, h, w = masks.shape
     masks_reshaped = masks.reshape(-1, 1)
     masks_reshaped_encoded = labelencoder.fit_transform(masks_reshaped)
-    masks_encoded_original_shape = masks_reshaped_encoded.reshape(n, h, w)
+    mask_new_encoded = masks_reshaped_encoded.reshape(n, h, w)
 
-    print(np.unique(masks_encoded_original_shape))
-    datasets['labels'][0] = masks_encoded_original_shape
+    print(np.unique(mask_new_encoded))
+
+    mask_new = np.where(np.isin(mask_new_encoded, [1,2,4,5,6,7,8,9,10,11]), mask_new_encoded, 0)
+    mask_new = np.where(np.isin(mask_new, [1,2, 0]), mask_new, 3)
+    #mask_new = np.where((mask_new!=0), 1, 0)
+    print(np.unique(mask_new))
+
+    n, h, w = mask_new.shape
+    mask_new_encoded = mask_new.reshape(-1, 1)
+    mask_new_encoded = labelencoder.fit_transform(mask_new_encoded)
+    mask_new_encoded = mask_new_encoded.reshape(n, h, w)
+
+    print(np.unique(mask_new_encoded))
+
+    datasets['labels'][0] = mask_new_encoded
+
     #datasets['labels'][0] = map_array_to_range(datasets['labels'][0])
-    from sklearn.utils.class_weight import compute_class_weight
-
-    class_weights = compute_class_weight(
-        class_weight="balanced",
-        classes=np.unique(np.ravel(masks_encoded_original_shape,order='C')),
-        y=np.ravel(masks_encoded_original_shape,order='C')
-    )
+    # from sklearn.utils.class_weight import compute_class_weight
+    #
+    # class_weights = compute_class_weight(
+    #     class_weight="balanced",
+    #     classes=np.unique(np.ravel(mask_new_encoded,order='C')),
+    #     y=np.ravel(mask_new_encoded,order='C')
+    # )
     #class_weights = dict(zip(np.unique(masks_encoded_original_shape), class_weights))
-    print("Class weights are...:", class_weights)
+    #print("Class weights are...:", class_weights)
 
     dict1, dict2, dict3, training_indices, testing_indices, validation_indices = split_dict_by_ratio(keep_regions, 0.70,
                                                                                                      0.15)
@@ -757,20 +794,27 @@ if __name__ == "__main__":
     print("Validation " + str(validate_images.shape[0]))
     print("Test " + str(test_images.shape[0]))
 
+    #remove classes those have few samples:
+
+
+
+
     # show a collection of images from the training set
-    # get_sample_display_multiple_img(train_images, train_labels, n=5)
+    #get_sample_display_multiple_img(train_images_hs, train_labels, n=5)
 
     # setup input and output images for the neural net
-    X_train = train_images
-    X_validate = validate_images
-    X_test = test_images[:1000,:,:]
+    X_train = train_images_hs[:,:,:,0]
+    X_validate = validate_images_hs[:,:,:,0]
+    X_test = test_images_hs[:1000,:,:,0]
 
     Y_train = train_labels
     Y_validate = validate_labels
     Y_test = test_labels[:1000,:,:]
 
     # add component/channel dimension to data and label images
-
+    Y_train, X_train = remove_zero_images(Y_train, X_train)
+    Y_validate, X_validate = remove_zero_images(Y_validate, X_validate)
+    Y_test, X_test = remove_zero_images(Y_test, X_test)
     X_train = np.expand_dims(X_train, axis=3)
     X_validate = np.expand_dims(X_validate, axis=3)
     Y_train = np.expand_dims(Y_train, axis=3)
@@ -781,12 +825,17 @@ if __name__ == "__main__":
     n_classes_train = len(np.unique(Y_train))
     n_classes_validate = len(np.unique(Y_validate))
     n_classes_test = len(np.unique(Y_test))
+
     print("Classes in Training set: " + str(np.unique(Y_train)))
     print("Number of Classes in Training set: " + str(n_classes_train))
     print("Classes in Validation set: " + str(np.unique(Y_validate)))
     print("Number of Classes in Validation set: " + str(n_classes_validate))
     print("Classes in Test set: " + str(np.unique(Y_test)))
     print("Number of Classes in Test set: " + str(n_classes_test))
+
+    print("Samples Training set: " + str(len(Y_train)))
+    print("Samples in Validation set: " + str(len(Y_validate)))
+    print("Samples in Test set: " + str(len(Y_test)))
 
     # Y_train_cat = tf.keras.utils.to_categorical(Y_train, num_classes=n_class)
     # Y_validate_cat = tf.keras.utils.to_categorical(Y_validate, num_classes=n_class)
@@ -798,16 +847,19 @@ if __name__ == "__main__":
     print(input_shape)
     from tensorflow.keras.utils import to_categorical
 
-    train_masks_cat = to_categorical(Y_train, num_classes=16)
-    Y_train_cat = train_masks_cat.reshape((Y_train.shape[0], Y_train.shape[1], Y_train.shape[2], 16))
+    train_masks_cat = to_categorical(Y_train, num_classes=n_classes)
+    Y_train_cat = train_masks_cat.reshape((Y_train.shape[0], Y_train.shape[1], Y_train.shape[2], n_classes))
 
-    val_masks_cat = to_categorical(Y_validate, num_classes=16)
-    Y_validate_cat = val_masks_cat.reshape((Y_validate.shape[0], Y_validate.shape[1], Y_validate.shape[2], 16))
+    val_masks_cat = to_categorical(Y_validate, num_classes=n_classes)
+    Y_validate_cat = val_masks_cat.reshape((Y_validate.shape[0], Y_validate.shape[1], Y_validate.shape[2], n_classes))
 
-
+    #change it back to the previous one
+    # metrics = [#HybridDiceAndFocalLoss(),
+    #            MeanIoU(num_classes=16),
+    # ]
     metrics = [#HybridDiceAndFocalLoss(),
-               MeanIoU(num_classes=16),
-    ]
+               sm.metrics.IOUScore(threshold=0.5),
+               sm.metrics.FScore(threshold=0.5)]
 
 
     save_results = home_folder + results_folder + trial_folder
@@ -830,9 +882,9 @@ if __name__ == "__main__":
         f.write('__________________________' + '\n')
 
     from keras_unet_collection import models
-    #models =['unet_resnet34']
+    models =['unet_resnet34']
 
-    models = ['Unet', 'unet_resnet34', 'unet_resnet50']
+    #models = ['Unet', 'unet_resnet34', 'unet_resnet50']
     for i in models:
 
         save_weights = home_folder + results_folder + trial_folder + i + "/"
@@ -847,7 +899,7 @@ if __name__ == "__main__":
 
         if i == "Unet":
 
-            unet_model = build_unet(input_shape, 16)
+            unet_model = build_unet(input_shape, n_classes)
 
 
         if i == "unet_resnet34":
@@ -863,7 +915,7 @@ if __name__ == "__main__":
             from keras.layers import Input, Conv2D
             from keras.models import Model
 
-            base_model = sm.Unet(backbone_name=BACKBONE, encoder_weights='imagenet', classes=16,
+            base_model = sm.Unet(backbone_name=BACKBONE, encoder_weights='imagenet', classes=n_classes,
                               activation='softmax')  # encoder_freeze = True/False
             inp = Input(shape=(128, 128, 1))
             l1 = Conv2D(3, (1, 1))(inp)  # map N channels data to 3 channels
@@ -873,7 +925,7 @@ if __name__ == "__main__":
 
         from segmentation_models.losses import bce_jaccard_loss
         #loss = bce_jaccard_loss,
-        loss = tf.keras.losses.CategoricalCrossentropy(),
+        loss = tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.1),
         unet_model.compile(optimizer=tf.keras.optimizers.SGD(lr=1e-1),
                            loss=loss,
                            metrics=metrics)
@@ -914,18 +966,18 @@ if __name__ == "__main__":
 
         save_model(model=unet_model, filepath=save_weights + model_filename)
 
-        # unet_model = load_model(filepath=save_results + model_filename,
-        #                         custom_objects={"hybrid_dice_and_focal_loss": metrics[0],
-        #                                         "iou_score": metrics[1],
-        #                                         "f1-score": metrics[2]})
+        unet_model = load_model(filepath=save_weights + model_filename,
+                                custom_objects={#"hybrid_dice_and_focal_loss": metrics[0],
+                                                "iou_score": metrics[0],
+                                                "f1-score": metrics[1]})
 
         Y_validate_predicted = unet_model.predict(X_validate)
         Y_validate_predicted_argmax = np.argmax(Y_validate_predicted, axis=3)
 
-        n_classes = 16
+
 
         IOU_keras = MeanIoU(num_classes=n_classes)
-        IOU_keras.update_state(validate_labels, Y_validate_predicted_argmax)
+        IOU_keras.update_state(Y_validate, Y_validate_predicted_argmax)
         iou_val = IOU_keras.result().numpy()
         print("IoU on validation data =", iou_val)
         iou_array_val = np.array(IOU_keras.get_weights()).reshape(n_classes, n_classes)
