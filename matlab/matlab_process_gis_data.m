@@ -19,7 +19,7 @@ MAX_INTENSITY = 255;
 INTERACTIVE_ANNULAR_REGION_SPECIFICATION = false;
 INTERACTIVE_PLATFORM_REGION_SPECIFICATION = false;
 INTERACTION_LABEL_INDICES = 1:53;
-
+PATH_ROOT="/home.local/local-arwillis/PyCharm/data/";
 % Delete some labels from a file
 DO_DELETE = false;
 if (DO_DELETE)
@@ -48,7 +48,7 @@ region(2).LabelValue = 2;
 NUMDATASETS = 3;
 
 %for datasetIdx=NUMDATASETS:NUMDATASETS
-for datasetIdx=1:NUMDATASETS
+for datasetIdx=3:NUMDATASETS
     DATASETINDEX=datasetIdx;
     hold off;
     close all;
@@ -103,12 +103,15 @@ for datasetIdx=1:NUMDATASETS
             printf(1,"Error\n");
             return;
     end
+    gis_geotiff_filename = strcat(PATH_ROOT,gis_geotiff_filename);
+    gis_output_filename = strcat(PATH_ROOT,gis_output_filename);
+    gis_output_hillshade_filename = strcat(PATH_ROOT,gis_output_hillshade_filename);
     
     geotiff_info = geotiffinfo(gis_geotiff_filename);
     geotiff_data = readgeoraster(gis_geotiff_filename);
     
-    if (strcmp(gis_geotiff_filename,'MLS/raw/MLS_DEM.tif') == 1 || ...
-            strcmp(gis_geotiff_filename,'KOM/raw/kom_dsm_lidar.tif') == 1)
+    if (contains(gis_geotiff_filename,'MLS/raw/MLS_DEM.tif') == 1 || ...
+            contains(gis_geotiff_filename,'KOM/raw/kom_dsm_lidar.tif') == 1)
         bad_pixel_values = max(geotiff_data(:));
         artificial_min_value = min(geotiff_data(:))-0.1;
         geotiff_data(geotiff_data==bad_pixel_values)=artificial_min_value;

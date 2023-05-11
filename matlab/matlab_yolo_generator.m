@@ -16,13 +16,14 @@ SHOW_AUGMENTATION = true;
 pct_test = 0.2;
 pct_val = 0.15;
 
-path_root ="/home/arwillis/PyCharm/data";
+% PATH_ROOT ="/home/arwillis/PyCharm/data";
+PATH_ROOT ="/home.local/local-arwillis/PyCharm/data";
 data_file = ["KOM_image_data.mat","MLS_image_data.mat","UCB_image_data.mat","Sayil_image_data.mat"];
 input_filenames_hs = ["KOM/kom_dsm_lidar_hs.png","MLS/MLS_DEM_hs.png","UCB/UCB_elev_adjusted_hs.png"];
 label_files = ["KOM_ground_truth_labels.mat","MLS_ground_truth_labels.mat","UCB_ground_truth_labels.mat"];
-data_filename = strcat(path_root,'/',data_file(DATASET_INDEX));
-data_hs_filename = strcat(path_root,'/',input_filenames_hs(DATASET_INDEX));
-label_filename = strcat(path_root,'/',label_files(DATASET_INDEX));
+data_filename = strcat(PATH_ROOT,'/',data_file(DATASET_INDEX));
+data_hs_filename = strcat(PATH_ROOT,'/',input_filenames_hs(DATASET_INDEX));
+label_filename = strcat(PATH_ROOT,'/',label_files(DATASET_INDEX));
 
 yolov7_output_data_paths = ["yolov7/train/", "yolov7/val/", "yolov7/test/"];
 
@@ -244,7 +245,7 @@ end
 
 output_json_files = ["annotation_train.json","annotation_validation.json", "annotation_test.json"];
 for dataset_idx=1:3
-    jsonStr = jsonencode(jsonYoloData{dataset_idx}, PrettyPrint=true);
+    jsonStr = jsonencode(jsonYoloData{dataset_idx});
     annotation_output_path = strcat(yolov7_output_annotation_paths,"/",output_json_files(dataset_idx));
     fid = fopen(annotation_output_path, 'w');
     fprintf(fid, '%s\n', jsonStr);
