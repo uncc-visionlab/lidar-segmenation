@@ -196,11 +196,14 @@ for label_file_idx=1:length(label_files)
                         img_filename = sprintf("img_%05d.png",data_vector_ID);
                         jsonYoloImageNew = jsonYoloImage;
                         jsonYoloImageNew.filename = img_filename;
+                        jsonYoloImageNew.dims.width = IMAGE_SIZE;
+                        jsonYoloImageNew.dims.height = IMAGE_SIZE;
                         jsonYoloImageNew.id = data_vector_ID;
                         jsonYoloData{output_dataset_idx}.imageList = [jsonYoloData{output_dataset_idx}.imageList, ...
                             jsonYoloImageNew];
                         % jsonYoloData.annotationList = [jsonYoloData.annotationList, jsonYoloAnnotation];
-
+                        jsonYoloData{output_dataset_idx}.annotationList = [jsonYoloData{output_dataset_idx}.annotationList, ...
+                            aug_annotations'];
                         data_vector_ID = data_vector_ID + 1;
                         
                         output_image_file = strcat(yolov7_output_path,'/',img_filename);
@@ -306,13 +309,15 @@ for annotation_idx=1:length(annotations)
         jsonYoloAnnotationNew = jsonYoloAnnotation;
         jsonYoloAnnotationNew.category_id = cur_annotation.category_id;
         jsonYoloAnnotationNew.image_id = image_id;
-        jsonYoloAnnotationNew.bb.x = bbox_tlc_img(1);
-        jsonYoloAnnotationNew.bb.y = bbox_tlc_img(2);
-        jsonYoloAnnotationNew.bb.width = bbox_dims(1);
-        jsonYoloAnnotationNew.bb.height = bbox_dims(2);
+        jsonYoloAnnotationNew.bb.x = int32(bbox_tlc_img(1));
+        jsonYoloAnnotationNew.bb.y = int32(bbox_tlc_img(2));
+        jsonYoloAnnotationNew.bb.width = int32(bbox_dims(1));
+        jsonYoloAnnotationNew.bb.height = int32(bbox_dims(2));
         jsonYoloAnnotationNew.area =  bbox_dims(1) * bbox_dims(2);
         jsonYoloAnnotationNew.segmentation = [];
-        image_annotations = [image_annotations; jsonYoloAnnotationNew];
+        if (bbox_dims(1) > 3 && bbox_dims(2) > 3) 
+            image_annotations = [image_annotations; jsonYoloAnnotationNew];
+        end
     end
 end
 end
