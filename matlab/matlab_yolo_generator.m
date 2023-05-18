@@ -4,10 +4,10 @@ close all;
 DATASET_INDEX = 1;
 IMAGE_SIZE = 320;
 
-NUM_AUGMENTATIONS_PER_LABELED_REGION = 1;
+NUM_AUGMENTATIONS_PER_LABELED_REGION = 10;
 NUM_RANDOM_AUGMENTATIONS = 1;
-SHOW_AUGMENTATION = true;
-%SHOW_AUGMENTATION = false
+%SHOW_AUGMENTATION = true;
+SHOW_AUGMENTATION = false;
 
 % split the data within each image test/train
 % test 20%
@@ -17,7 +17,8 @@ pct_test = 0.2;
 pct_val = 0.15;
 
 % PATH_ROOT ="/home/arwillis/PyCharm/data";
-PATH_ROOT ="/home.local/local-arwillis/PyCharm/data";
+% PATH_ROOT ="/home.local/local-arwillis/PyCharm/data";
+PATH_ROOT ="/home.md1/jzhang72/PycharmProjects/lidar-segmentation/yolov7/data/lidar_data";
 data_file = ["KOM_image_data.mat","MLS_image_data.mat","UCB_image_data.mat","Sayil_image_data.mat"];
 input_filenames_hs = ["KOM/kom_dsm_lidar_hs.png","MLS/MLS_DEM_hs.png","UCB/UCB_elev_adjusted_hs.png"];
 label_files = ["KOM_ground_truth_labels.mat","MLS_ground_truth_labels.mat","UCB_ground_truth_labels.mat"];
@@ -25,9 +26,10 @@ data_filename = strcat(PATH_ROOT,'/',data_file(DATASET_INDEX));
 data_hs_filename = strcat(PATH_ROOT,'/',input_filenames_hs(DATASET_INDEX));
 label_filename = strcat(PATH_ROOT,'/',label_files(DATASET_INDEX));
 
-yolov7_output_data_paths = ["yolov7/train/", "yolov7/val/", "yolov7/test/"];
+% yolov7_output_data_paths = ["yolov7/train/", "yolov7/val/", "yolov7/test/"];
+yolov7_output_data_paths = ["yolov7/images/train/", "yolov7/images/val/", "yolov7/images/test/"];
 
-region(1).Name = 'Annular structure';1
+region(1).Name = 'Annular structure';
 region(1).WINDOWSIZE = 40;
 region(1).Color = [1 .8 .8]; % light red
 region(1).LabelValue = 1;
@@ -63,6 +65,7 @@ for dataset_idx=1:3
     end
 end
 
+data_vector_ID = 1;
 % loop over ground_truth datasets
 for label_file_idx=1:length(label_files)
     load(data_filename);
@@ -139,7 +142,7 @@ for label_file_idx=1:length(label_files)
         for test_region_idx=1:length(test_set)
             test_region_centers(test_region_idx,:) = mean(test_set(test_region_idx).vertices);
         end
-        data_vector_ID = 1;
+        
         % loop over train, validation and test datasets for generation
         for output_dataset_idx=1:length(datasets)
             dataset = datasets{output_dataset_idx};
@@ -246,7 +249,7 @@ if ~exist(yolov7_output_annotation_paths, 'dir')
     mkdir(yolov7_output_annotation_paths)
 end
 
-output_json_files = ["annotation_train.json","annotation_validation.json", "annotation_test.json"];
+output_json_files = ["train.json","val.json", "test.json"];
 for dataset_idx=1:3
     jsonStr = jsonencode(jsonYoloData{dataset_idx});
     annotation_output_path = strcat(yolov7_output_annotation_paths,"/",output_json_files(dataset_idx));
@@ -332,8 +335,8 @@ xy_start = [floor(center_x - (bound_w / 2) + 1), floor(center_y - (bound_h / 2) 
 xy_end = [ceil(center_x + (bound_w / 2) + 1), ceil(center_y + (bound_h / 2) + 1)];
 [rows, cols, ~] = size(img);
 image_patch_aug = [];
-if (any(xy_start < 0) || xy_start(1) > cols || xy_start(2) > rows || ...
-        any(xy_end < 0) || xy_end(1) > cols || xy_end(2) > rows)
+if (any(xy_start < 1) || xy_start(1) > cols || xy_start(2) > rows || ...
+        any(xy_end < 1) || xy_end(1) > cols || xy_end(2) > rows)
     %print("Could not extract patch at location (" + str((center_x, center_y)) + ")")
     return
 end

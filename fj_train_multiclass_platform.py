@@ -29,7 +29,6 @@ from keras.models import load_model, save_model
 
 from datetime import datetime
 from att_models import Attention_ResUNet, UNet, Attention_UNet, dice_coef, dice_coef_loss, jacard_coef
-from hrnet_model import hrnet_keras
 import scipy.io as sio
 from keras_unet_collection import models
 import random

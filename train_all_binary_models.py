@@ -30,9 +30,7 @@ import segmentation_models as sm
 
 from datetime import datetime
 from att_models import Attention_ResUNet, UNet, Attention_UNet, dice_coef, dice_coef_loss, jacard_coef
-from hrnet_model import hrnet_keras
 import scipy.io as sio
-from keras_unet_collection import models
 # def remove_zero_images(x, y):
 #     """
 #     Remove images from x and y if any image from x does not contain any value except 0.
