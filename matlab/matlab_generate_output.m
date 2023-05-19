@@ -63,6 +63,8 @@ color_image = zeros(rows, cols, 3);
 color_image(:,:,1) = I_hs - I_gt_labels/5;
 color_image(:,:,2) = I_hs - I_labels/5;
 color_image(:,:,3) = I_hs;
+file_extension = fused_output_filename(end-3:end)
+if (strcmp(file_extension,'tif'))
 % configure tiff
 tiff_output = Tiff(fused_output_filename,'w8');
 setTag(tiff_output,'ImageLength',rows);
@@ -75,5 +77,6 @@ setTag(tiff_output,'Compression',Tiff.Compression.LZW);
 % write data
 write(tiff_output,uint8(color_image));
 close(tiff_output);
-
-%imwrite(color_image, fused_output_filename);
+else
+imwrite(color_image, fused_output_filename);
+end

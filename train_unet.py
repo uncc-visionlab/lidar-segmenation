@@ -177,8 +177,14 @@ if __name__ == "__main__":
     IMAGE_SIZE = 128
 
     # Image augmentation settings
-    NUM_AUGMENTATIONS_PER_LABELED_REGION = 70
-    NUM_RANDOM_AUGMENTATIONS = 500
+    # Used for annular structures
+    # NUM_AUGMENTATIONS_PER_LABELED_REGION = 70
+    # NUM_RANDOM_AUGMENTATIONS = 500
+    # increase 400 -> 500 and 25 -> 100
+    # NUM_AUGMENTATIONS_PER_LABELED_REGION = 100
+    # NUM_RANDOM_AUGMENTATIONS = 500
+    NUM_AUGMENTATIONS_PER_LABELED_REGION = 150
+    NUM_RANDOM_AUGMENTATIONS = 1000
     # SHOW_AUGMENTATION = True
     SHOW_AUGMENTATION = False
 
@@ -241,7 +247,7 @@ if __name__ == "__main__":
     for datasetIdx in range(len(image_data)):
         #labelArr = datasets['labels']
         # for labelIdx in range(len(image_labels[datasetIdx])):   # A
-        for labelIdx in range(1):  # A
+        for labelIdx in range(1, 2):  # A
             regions = []
             print("label " + str(labelIdx))
             for regionIdx in range(len(image_labels[datasetIdx][labelIdx][0])):   # B
@@ -266,7 +272,8 @@ if __name__ == "__main__":
             (totalLabels, label_img, regionStats, regionCentroids) = analysis
             datasets['analysis'].append(analysis)
 
-    num_datasets = len(datasets['data'])
+    # num_datasets = len(datasets['data'])
+    num_datasets = 2
 
     # this will store all of our data for all datasets and their components which consist of the data split into
     # training, validation and testing sets
@@ -413,24 +420,37 @@ if __name__ == "__main__":
 
 
     # form the training, testing and validation datasets from available labeled image data
+    # train_images = np.concatenate((augmentation_data[0]['train']['data'],
+    #                                augmentation_data[1]['train']['data'],
+    #                                augmentation_data[2]['train']['data']))
+    # train_labels = np.concatenate((augmentation_data[0]['train']['labels'],
+    #                                augmentation_data[1]['train']['labels'],
+    #                                augmentation_data[2]['train']['labels']))
+    # validate_images = np.concatenate((augmentation_data[0]['validate']['data'],
+    #                                   augmentation_data[1]['validate']['data'],
+    #                                   augmentation_data[2]['validate']['data']))
+    # validate_labels = np.concatenate((augmentation_data[0]['validate']['labels'],
+    #                                   augmentation_data[1]['validate']['labels'],
+    #                                   augmentation_data[2]['validate']['labels']))
+    # test_images = np.concatenate((augmentation_data[0]['test']['data'],
+    #                               augmentation_data[1]['test']['data'],
+    #                               augmentation_data[2]['test']['data']))
+    # test_labels = np.concatenate((augmentation_data[0]['test']['labels'],
+    #                               augmentation_data[1]['test']['labels'],
+    #                               augmentation_data[2]['test']['labels']))
+
     train_images = np.concatenate((augmentation_data[0]['train']['data'],
-                                   augmentation_data[1]['train']['data'],
-                                   augmentation_data[2]['train']['data']))
+                                   augmentation_data[1]['train']['data']))
     train_labels = np.concatenate((augmentation_data[0]['train']['labels'],
-                                   augmentation_data[1]['train']['labels'],
-                                   augmentation_data[2]['train']['labels']))
+                                   augmentation_data[1]['train']['labels']))
     validate_images = np.concatenate((augmentation_data[0]['validate']['data'],
-                                      augmentation_data[1]['validate']['data'],
-                                      augmentation_data[2]['validate']['data']))
+                                      augmentation_data[1]['validate']['data']))
     validate_labels = np.concatenate((augmentation_data[0]['validate']['labels'],
-                                      augmentation_data[1]['validate']['labels'],
-                                      augmentation_data[2]['validate']['labels']))
+                                      augmentation_data[1]['validate']['labels']))
     test_images = np.concatenate((augmentation_data[0]['test']['data'],
-                                  augmentation_data[1]['test']['data'],
-                                  augmentation_data[2]['test']['data']))
+                                  augmentation_data[1]['test']['data']))
     test_labels = np.concatenate((augmentation_data[0]['test']['labels'],
-                                  augmentation_data[1]['test']['labels'],
-                                  augmentation_data[2]['test']['labels']))
+                                  augmentation_data[1]['test']['labels']))
 
     from random import shuffle
 

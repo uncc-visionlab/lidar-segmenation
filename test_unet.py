@@ -22,7 +22,7 @@ from keras.metrics import MeanIoU
 from keras.models import load_model, save_model
 
 import scipy.io as sio
-
+from tqdm import tqdm
 
 def to_pickle(thing, path):  # save something
     with open(path, 'wb') as handle:
@@ -224,10 +224,11 @@ if __name__ == "__main__":
     label_image_predicted = np.zeros((image_data.shape[0],image_data.shape[1],int(num_classes)), dtype=np.float32)
     label_image = np.zeros(image_data.shape, dtype=np.float32)
     classification_count_image = np.zeros(image_data.shape, dtype=np.float32)
-
-    for y in y_vals:
+    total_iterations = len(y_vals)*len(x_vals)
+    current_iteration = 0
+    for y in tqdm(y_vals):
         for x in x_vals:
-            print("(x,y) = " + "(" + str(x) + ", " + str(y) + ")")
+            # print("(x,y) = " + "(" + str(x) + ", " + str(y) + ")")
             test_image = image_data[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
                          (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])]
             test_image_hs = image_data_hs[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),

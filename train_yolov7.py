@@ -1,3 +1,7 @@
+# trained with parameters as shown below:
+# python3 train_yolov7.py --workers 16 --device 0 --batch-size 32 --data conf_yolov7/lidar.yaml --img 320 320 --cfg conf_yolov7/yolov7_lidar.yaml --weights '' --name lidardet --hyp yolov7/data/hyp.scratch.p5.yaml
+#
+
 import argparse
 import logging
 import math

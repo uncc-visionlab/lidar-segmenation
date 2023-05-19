@@ -1,3 +1,6 @@
+# tested with parameters as shown below:
+# python3 test_yolov7.py --data conf_yolov7/lidar.yaml --img 320 --batch 32 --conf 0.001 --iou 0.65 --device 0 --weights runs/train/lidardet2/weights/best.pt --name yolov7_320_test
+#
 import argparse
 import json
 import os
