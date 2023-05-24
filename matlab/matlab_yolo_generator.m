@@ -1,13 +1,13 @@
 clear;
 clc;
 close all;
-DATASET_INDEX = 1;
+%DATASET_INDEX = 1;
 IMAGE_SIZE = 320;
 
 NUM_AUGMENTATIONS_PER_LABELED_REGION = 10;
 NUM_RANDOM_AUGMENTATIONS = 1;
-%SHOW_AUGMENTATION = true;
-SHOW_AUGMENTATION = false;
+SHOW_AUGMENTATION = true;
+%SHOW_AUGMENTATION = false;
 
 % split the data within each image test/train
 % test 20%
@@ -23,9 +23,6 @@ PATH_ROOT ="/home/arwillis/PyCharm/data";
 data_file = ["KOM_image_data.mat","MLS_image_data.mat","UCB_image_data.mat","Sayil_image_data.mat"];
 input_filenames_hs = ["KOM/kom_dsm_lidar_hs.png","MLS/MLS_DEM_hs.png","UCB/UCB_elev_adjusted_hs.png"];
 label_files = ["KOM_ground_truth_labels.mat","MLS_ground_truth_labels.mat","UCB_ground_truth_labels.mat"];
-data_filename = strcat(PATH_ROOT,'/',data_file(DATASET_INDEX));
-data_hs_filename = strcat(PATH_ROOT,'/',input_filenames_hs(DATASET_INDEX));
-label_filename = strcat(PATH_ROOT,'/',label_files(DATASET_INDEX));
 
 % yolov7_output_data_paths = ["yolov7/train/", "yolov7/val/", "yolov7/test/"];
 yolov7_output_data_paths = ["yolov7/images/train/", "yolov7/images/val/", "yolov7/images/test/"];
@@ -69,6 +66,11 @@ end
 data_vector_ID = 1;
 % loop over ground_truth datasets
 for label_file_idx=1:length(label_files)
+    clear all_labels;
+    clear geotiff_data;
+    data_filename = strcat(PATH_ROOT,'/',data_file(label_file_idx));
+    data_hs_filename = strcat(PATH_ROOT,'/',input_filenames_hs(label_file_idx));
+    label_filename = strcat(PATH_ROOT,'/',label_files(label_file_idx));
     load(data_filename);
     load(label_filename);
     geotiff_data_hs = imread(data_hs_filename);
