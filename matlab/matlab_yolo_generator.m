@@ -4,7 +4,7 @@ close all;
 %DATASET_INDEX = 1;
 IMAGE_SIZE = 320;
 
-NUM_AUGMENTATIONS_PER_LABELED_REGION = 10;
+NUM_AUGMENTATIONS_PER_LABELED_REGION = 1;
 NUM_RANDOM_AUGMENTATIONS = 1;
 SHOW_AUGMENTATION = true;
 %SHOW_AUGMENTATION = false;
@@ -94,7 +94,7 @@ for label_file_idx=1:length(label_files)
                 bbox_tlc(1) + bbox_dims(1), bbox_tlc(2) + bbox_dims(2);
                 bbox_tlc(1) + bbox_dims(1), bbox_tlc(2);
                 bbox_tlc;];
-            polygon_vertices = bbox_vertices;              
+            polygon_vertices = bbox_vertices;           
             tile_tlc = int32([(center(1) - (IMAGE_SIZE/2)), (center(2) - (IMAGE_SIZE/2))]);
             tile_tlc(tile_tlc <= 0) = 1;
             tile_brc = int32([(center(1) + (IMAGE_SIZE/2)), (center(2) + (IMAGE_SIZE/2))]);
