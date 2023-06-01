@@ -4,10 +4,10 @@ close all;
 %DATASET_INDEX = 1;
 IMAGE_SIZE = 320;
 
-NUM_AUGMENTATIONS_PER_LABELED_REGION = 1;
+MAX_NUM_AUGMENTATIONS_PER_LABELED_REGION = 10;
 NUM_RANDOM_AUGMENTATIONS = 1;
-SHOW_AUGMENTATION = true;
-%SHOW_AUGMENTATION = false;
+%SHOW_AUGMENTATION = true;
+SHOW_AUGMENTATION = false;
 
 % split the data within each image test/train
 % test 20%
@@ -16,10 +16,9 @@ SHOW_AUGMENTATION = true;
 pct_test = 0.2;
 pct_val = 0.15;
 
-PATH_ROOT ="/home/arwillis/PyCharm/data";
+%PATH_ROOT ="/home/arwillis/PyCharm/data";
 %PATH_ROOT ="/home.local/local-arwillis/PyCharm/data";
-%PATH_ROOT ="/home.md1/jzhang72/PycharmProjects/lidar-segmentation/yolov7/data/lidar_data";
-
+PATH_ROOT ="/home.md1/jzhang72/PycharmProjects/lidar-segmentation/data";
 data_file = ["KOM_image_data.mat","MLS_image_data.mat","UCB_image_data.mat","Sayil_image_data.mat"];
 input_filenames_hs = ["KOM/kom_dsm_lidar_hs.png","MLS/MLS_DEM_hs.png","UCB/UCB_elev_adjusted_hs.png"];
 label_files = ["KOM_ground_truth_labels.mat","MLS_ground_truth_labels.mat","UCB_ground_truth_labels.mat"];
@@ -155,6 +154,7 @@ for label_file_idx=1:length(label_files)
             end
             for dataIdx=1:length(dataset)
                 dataValue = dataset(dataIdx);
+                NUM_AUGMENTATIONS_PER_LABELED_REGION = randi(MAX_NUM_AUGMENTATIONS_PER_LABELED_REGION);
                 for augmentationIdx=1:NUM_AUGMENTATIONS_PER_LABELED_REGION
                     % randomly perturb the orientation
                     angle = rand(1,1)*360;

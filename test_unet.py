@@ -193,7 +193,7 @@ if __name__ == "__main__":
     if DATASET_INDEX == 3:
         with h5py.File(img_filename_mat, 'r') as f:
             # print(f.keys())
-            image_data = np.array(f['geotiff_data'])
+            image_data = np.array(f['geotiff_data']).transpose()
     else:
         mat_data = sio.loadmat(img_filename_mat, squeeze_me=True)
         image_data = mat_data['geotiff_data']
