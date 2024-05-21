@@ -12,6 +12,8 @@ import h5py
 import scipy.io as sio
 from matplotlib import pyplot as plt
 
+from bbox_processing import merge_bboxes
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]
 if str(ROOT) not in sys.path:
@@ -65,7 +67,7 @@ def load_model(device):
     return model, model_c, names, colors
 
 
-def detect(img, img_hs, model, model_c, names, colors, device, tl_pos, label_save_filename):
+def detect(img, img_hs, model, model_c, names, colors, device, tl_pos, bboxes):
     save_label, img_sz = opt.save_label, opt.img_size
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
@@ -106,9 +108,7 @@ def detect(img, img_hs, model, model_c, names, colors, device, tl_pos, label_sav
         pred = apply_classifier(pred, model_c, img0, img)
 
     # Process detections
-    cnt = 0
     for i, det in enumerate(pred):  # detections per image
-        cnt = len(det)  # number of predictions
         s = 'No target found, '
         im0 = img_hs
         gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
@@ -126,9 +126,7 @@ def detect(img, img_hs, model, model_c, names, colors, device, tl_pos, label_sav
                     xc_yc_w_h = [tl_pos[0] + xywh[0] * img_sz, tl_pos[1] + xywh[1] * img_sz, xywh[2] * img_sz, xywh[3] * img_sz]  # [x_c, y_c, w, h]
                     line = [cls.cpu().data.numpy(), xc_yc_w_h, conf.cpu().data.numpy()]  # label
                     # print(line)
-                    with open(label_save_filename, 'a') as f:
-                        w = csv.writer(f)
-                        w.writerow(line)
+                    bboxes.append(line)
 
                 label = ''  # f'{names[int(cls)]} {conf:.2f}'
                 plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=2)
@@ -146,7 +144,7 @@ def detect(img, img_hs, model, model_c, names, colors, device, tl_pos, label_sav
         #     cv2.imwrite(save_path, im0)
         #     print(f" The image with the result is saved in: {save_path}")
 
-    return cnt, im0
+    return im0
 
 
 if __name__ == '__main__':
@@ -157,6 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('--iou-thres', type=float, default=0.45, help='IOU threshold for NMS')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--save-label', action='store_true', help='save results to *.csv')
+    parser.add_argument('--merge-bbox', action='store_true', help='merge adjacent bounding boxes')
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --class 0, or --class 0 2 3')
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('--augment', action='store_true', help='augmented inference')
@@ -193,6 +192,11 @@ if __name__ == '__main__':
                                   'yolo_UCB_image_classified_labels.csv',
                                   'yolo_Sayil_image_classified_labels.csv']
 
+    gis_output_label_merged_filenames = ['yolo_KOM_image_classified_labels_merged.csv',
+                                         'yolo_MLS_image_classified_labels_merged.csv',
+                                         'yolo_UCB_image_classified_labels_merged.csv',
+                                         'yolo_Sayil_image_classified_labels_merged.csv']
+
     gis_input_filenames_mat = ['KOM_image_data.mat',
                                'MLS_image_data.mat',
                                'UCB_image_data.mat',
@@ -204,10 +208,9 @@ if __name__ == '__main__':
     output_folder = home_folder + results_folder
     os.makedirs(output_folder, exist_ok=True)
 
-    for DATASET_INDEX in range(len(gis_input_filenames_mat)):
+    for DATASET_INDEX in [2]:  # range(len(gis_input_filenames_mat)):
         print("Inference on " + gis_input_filenames_mat[DATASET_INDEX].split('.')[0])
         img_filename_mat = home_folder + 'data/' + gis_input_filenames_mat[DATASET_INDEX]
-        mat_data = []
         if DATASET_INDEX == 3:
             with h5py.File(img_filename_mat, 'r') as f:
                 # print(f.keys())
@@ -218,31 +221,25 @@ if __name__ == '__main__':
 
         output_filename = output_folder + gis_output_image_filenames[DATASET_INDEX]
         label_save_dir = output_folder + gis_output_label_filenames[DATASET_INDEX]
-        if opt.save_label:
-            with open(label_save_dir, 'w') as file:
-                writer = csv.writer(file)
-                field = ["class", "bbox (x_c, y_c, width, height)", "conf"]
-                writer.writerow(field)
         img_filename_hs = home_folder + gis_data_path[DATASET_INDEX] + gis_input_filenames_hs[DATASET_INDEX]
         image_data_hs = cv2.imread(img_filename_hs)
 
         [rows, cols] = image_data.shape[0:2]
-        xy_pixel_skip = (IMAGE_SIZE, IMAGE_SIZE)  # (32, 32)
+        xy_pixel_skip = (80, 80)    # (IMAGE_SIZE, IMAGE_SIZE)  # (32, 32)
         xy_pixel_margin = np.array([np.round((IMAGE_SIZE + 1) / 2), np.round((IMAGE_SIZE + 1) / 2)],
                                    dtype=np.int32)
 
         x_vals = range(xy_pixel_margin[0], cols - xy_pixel_margin[0], xy_pixel_skip[0])
         y_vals = range(xy_pixel_margin[1], rows - xy_pixel_margin[1], xy_pixel_skip[1])
 
-        total = 0
-        n = 1
         # plt.tight_layout()
         if SHOW_CLASSIFICATIONS:
-            figure, ax = plt.subplots(nrows=n, ncols=2, figsize=(8, n * 2))
+            figure, ax = plt.subplots(nrows=num_classes, ncols=2, figsize=(8, num_classes * 2))
 
         label_image_predicted = np.zeros((image_data.shape[0], image_data.shape[1], 3), dtype=np.float32)
         label_image = np.zeros(image_data.shape, dtype=np.float32)
         classification_count_image = np.zeros(image_data.shape, dtype=np.float32)
+        pred_bboxes = []
 
         for y in y_vals:
             for x in x_vals:
@@ -261,15 +258,11 @@ if __name__ == '__main__':
 
                 tl_pos_xy = [x - xy_pixel_margin[0], y - xy_pixel_margin[1]]  # top_left corner of the current tile in the big image
                 with torch.no_grad():
-                    num, test_image_predicted = detect(input_test_image, test_image_hs, net, net_c, class_names, class_colors, device, tl_pos_xy,
-                                                       label_save_dir)
+                    test_image_predicted = detect(input_test_image, test_image_hs, net, net_c, class_names, class_colors, device, tl_pos_xy,
+                                                  pred_bboxes)
 
-                total += num
                 label_image_predicted[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
                 (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0]), :] += test_image_predicted
-
-                # classification_count_image[(y - xy_pixel_margin[1]):(y + xy_pixel_margin[1]),
-                # (x - xy_pixel_margin[0]):(x + xy_pixel_margin[0])] += 1
 
                 if SHOW_CLASSIFICATIONS:
                     ax.ravel()[0].imshow(test_image_hs, cmap='gray')
@@ -280,6 +273,30 @@ if __name__ == '__main__':
                     plt.pause(0.1)
 
         cv2.imwrite(output_filename, np.array(label_image_predicted, dtype=np.uint8))
+        print("Prediction completed. " + str(len(pred_bboxes)) + " total bounding boxes detected.")
+
+        if opt.save_label:
+            for k in range(len(pred_bboxes)):
+                pred_bboxes[k] = [float(pred_bboxes[k][0]), [float(ele) for ele in pred_bboxes[k][1]], float(pred_bboxes[k][2])]
+                # print(pred_bboxes[k])
+            with open(label_save_dir, 'w') as file_1:
+                w = csv.writer(file_1)
+                field = ["class", "bbox (x_c, y_c, width, height)", "conf"]
+                w.writerow(field)
+                pred_bboxes = sorted(pred_bboxes, key=lambda bbox: bbox[1][0])  # Sort bboxes by x_c
+                w.writerows(pred_bboxes)
+            if opt.merge_bbox:
+                # file_1 = open(label_save_dir, 'r')
+                # data = list(csv.reader(file_1, delimiter=","))
+                # file_1.close()
+                data = pred_bboxes
+                new_data = merge_bboxes(data)
+                label_merged_save_dir = output_folder + gis_output_label_merged_filenames[DATASET_INDEX]
+                with open(label_merged_save_dir, 'w') as file_2:
+                    writer_2 = csv.writer(file_2)
+                    writer_2.writerow(field)
+                    writer_2.writerows(new_data)
+                print("Merging completed. " + str(len(new_data)) + " total bounding boxes after merging.")
 
         if SHOW_CLASSIFICATIONS:
             figure, bx = plt.subplots(nrows=n, ncols=2, figsize=(8, n * 2))
@@ -289,4 +306,4 @@ if __name__ == '__main__':
             bx.ravel()[1].imshow(label_image, cmap='gray')
             plt.show()
 
-        print("Dataset", DATASET_INDEX, "prediction completed.", total, "bounding boxes found. Image saved.")
+        print("Dataset", DATASET_INDEX, "inference completed. Results saved.")

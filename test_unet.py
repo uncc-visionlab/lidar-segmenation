@@ -221,7 +221,7 @@ if __name__ == "__main__":
 
     output_shape = unet_model.output.get_shape().as_list()
     num_classes = output_shape[3]
-    label_image_predicted = np.zeros((image_data.shape[0],image_data.shape[1],int(num_classes)), dtype=np.float32)
+    label_image_predicted = np.zeros((image_data.shape[0], image_data.shape[1], int(num_classes)), dtype=np.float32)
     label_image = np.zeros(image_data.shape, dtype=np.float32)
     classification_count_image = np.zeros(image_data.shape, dtype=np.float32)
     total_iterations = len(y_vals)*len(x_vals)
@@ -264,8 +264,8 @@ if __name__ == "__main__":
     for y in range(0, rows):
         for x in range(0, cols):
             if classification_count_image[y,x] > 0:
-                label_image[y,x] = label_image[y,x] / classification_count_image[y,x]
-    label_image = np.argmax(label_image_predicted, axis=2) / (num_classes - 1)
+                label_image_predicted[y,x] = label_image_predicted[y,x] / classification_count_image[y,x]
+    label_image_predicted = np.argmax(label_image_predicted, axis=2) / (num_classes - 1)
     cv2.imwrite(output_filename, np.array(label_image*255, dtype=np.uint8))
     figure, bx = plt.subplots(nrows=n, ncols=2, figsize=(8, n * 2))
     # bx.ravel()[0].imshow(image_data, cmap='gray')

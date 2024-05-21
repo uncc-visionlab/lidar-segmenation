@@ -1,30 +1,45 @@
 clear;
 clc;
 close all;
-%DATASET_INDEX = 1;
-IMAGE_SIZE = 320;
+IMAGE_SIZE = 256; %320;
 
-MAX_NUM_AUGMENTATIONS_PER_LABELED_REGION = 10;
+KEEP_PATCH_ON_BOUNDARY_PCT = -1.0;
+NUM_AUGMENTATIONS_PER_LABELED_REGION = 15; 
+TARGET_SIZE_THRESHOLD = 20;
 NUM_RANDOM_AUGMENTATIONS = 1;
-%SHOW_AUGMENTATION = true;
+% SHOW_AUGMENTATION = true;
 SHOW_AUGMENTATION = false;
 
 % split the data within each image test/train
 % test 20%
 % validate 15%
 % train 65%
-pct_test = 0.2;
-pct_val = 0.15;
+pct_test = 0.1;
+pct_val = 0.1;
 
 %PATH_ROOT ="/home/arwillis/PyCharm/data";
 %PATH_ROOT ="/home.local/local-arwillis/PyCharm/data";
-PATH_ROOT ="/home.md1/jzhang72/PycharmProjects/lidar-segmentation/data";
-data_file = ["KOM_image_data.mat","MLS_image_data.mat","UCB_image_data.mat","Sayil_image_data.mat"];
-input_filenames_hs = ["KOM/kom_dsm_lidar_hs.png","MLS/MLS_DEM_hs.png","UCB/UCB_elev_adjusted_hs.png"];
-label_files = ["KOM_ground_truth_labels.mat","MLS_ground_truth_labels.mat","UCB_ground_truth_labels.mat"];
+PATH_ROOT ="/home.md1/jzhang72/PycharmProjects/lidar-segmentation/data/ALS_data_(filtered_polygons)";
 
-% yolov7_output_data_paths = ["yolov7/train/", "yolov7/val/", "yolov7/test/"];
-yolov7_output_data_paths = ["yolov7/images/train/", "yolov7/images/val/", "yolov7/images/test/"];
+% For old training data (before 08-14-2023)
+% data_file = ["KOM/KOM_image_data.mat","MLS/MLS_image_data.mat","Sayil/Sayil_image_data.mat"]; % "UCB_image_data.mat",
+% input_filenames_hs = ["KOM/kom_dsm_lidar_hs.png","MLS/MLS_DEM_hs.png"]; % "UCB/UCB_elev_adjusted_hs.png"
+% label_files = ["KOM/KOM_ground_truth_labels.mat","MLS/MLS_ground_truth_labels.mat"]; % "UCB_ground_truth_labels.mat"
+% yolov7_output_data_paths = ["yolov7/images/train/", "yolov7/images/val/", "yolov7/images/test/"];
+
+% For ALS 3-band data (11-02-2023)
+data_file = ["MLS/MLS_ALS_data.mat", "SAY_clipped/SAY_clipped_ALS_data.mat", "KOM/KOM_ALS_data.mat"];
+input_filenames_hs = ["MLS/MLS_ALS_data.png", "SAY_clipped/SAY_clipped_ALS_data.png", "KOM/KOM_ALS_data.png"]; 
+label_files = ["MLS/MLS_ALS_gt.mat", "SAY_clipped/SAY_clipped_ALS_gt.mat", "KOM/KOM_ALS_gt.mat"]; 
+yolov7_output_data_paths = ["yolov7777/images/train/", "yolov7777/images/val/", "yolov7777/images/test/"];
+
+% For ALS single-band combined data (11-02-2023)
+% data_file = ["/ALS_data_11_02_23/KOM/KOM_Single_ALS_data.mat","/ALS_data_11_02_23/MLS/MLS_Single_ALS_data.mat"];
+% input_filenames_hs = ["/ALS_data_11_02_23/KOM/KOM_Single_ALS_data.png","/ALS_data_11_02_23/MLS/MLS_Single_ALS_data.png"];
+% label_files = ["/ALS_data_11_02_23/KOM/KOM_Single_ALS_gt.mat","/ALS_data_11_02_23/MLS/MLS_Single_ALS_gt.mat"]; 
+% yolov7_output_data_paths = ["yolov7/images/train/", "yolov7/images/val/", "yolov7/images/test/"];
+
+yolov7_output_annotation_paths = "yolov7777/annotations";
 
 region(1).Name = 'Annular structure';
 region(1).WINDOWSIZE = 40;
@@ -51,7 +66,7 @@ jsonYoloAnnotation = struct("category_id", 0, ...
     "width", 0, ...
     "height", 0), ...
     "area", 0, ...
-    "segmentation", [0,0,0,0]);
+    "segmentation", [[0,0,0,0]]); 
 
 for dataset_idx=1:3
     for label_idx=1:length(region)
@@ -72,13 +87,12 @@ for label_file_idx=1:length(label_files)
     label_filename = strcat(PATH_ROOT,'/',label_files(label_file_idx));
     load(data_filename);
     load(label_filename);
-    geotiff_data_hs = imread(data_hs_filename);
-    
-    [mask_rows, mask_cols] = size(geotiff_data);
+    geotiff_data_hs = imread(data_hs_filename); 
+    [mask_rows, mask_cols, ~] = size(geotiff_data);
     geotiff_data_mask = zeros(mask_rows, mask_cols);
         
     % generate a segmentation mask for the dataset image
-    annotation_index = 1;
+    % annotation_index = 1;
     for label_idx=1:length(all_labels)
         label_set = all_labels(label_idx).labels;
         num_labels = length(label_set);
@@ -93,7 +107,7 @@ for label_file_idx=1:length(label_files)
                 bbox_tlc(1) + bbox_dims(1), bbox_tlc(2) + bbox_dims(2);
                 bbox_tlc(1) + bbox_dims(1), bbox_tlc(2);
                 bbox_tlc;];
-            polygon_vertices = bbox_vertices;           
+            polygon_vertices = bbox_vertices;  
             tile_tlc = int32([(center(1) - (IMAGE_SIZE/2)), (center(2) - (IMAGE_SIZE/2))]);
             tile_tlc(tile_tlc <= 0) = 1;
             tile_brc = int32([(center(1) + (IMAGE_SIZE/2)), (center(2) + (IMAGE_SIZE/2))]);
@@ -103,11 +117,13 @@ for label_file_idx=1:length(label_files)
             if (tile_brc(2) > mask_rows)
                 tile_brc(2) = mask_rows;
             end
-            geotiff_annotations(annotation_index).category_id = region(label_idx).LabelValue;
-            geotiff_annotations(annotation_index).vertices = polygon_vertices;
-            annotation_index = annotation_index + 1;
+            % geotiff_annotations(annotation_index).category_id = region(label_idx).LabelValue;
+            % geotiff_annotations(annotation_index).vertices = dataValue.vertices;
+            % annotation_index = annotation_index + 1;
+            geotiff_annotations(dataIdx).category_id = region(label_idx).LabelValue;
+            geotiff_annotations(dataIdx).vertices = dataValue.vertices;
             num_vertices = size(polygon_vertices,1);
-            img_tile = geotiff_data_hs(tile_tlc(2):tile_brc(2),tile_tlc(1):tile_brc(1));
+            img_tile = geotiff_data_hs(tile_tlc(2):tile_brc(2),tile_tlc(1):tile_brc(1), :);
             subplot(1,2,1), hold off, imshow(img_tile,[0 255]);
             bw = poly2mask(polygon_vertices(:,1), polygon_vertices(:,2), mask_rows, mask_cols);
             geotiff_data_mask(bw==1) = region(label_idx).LabelValue;
@@ -154,19 +170,24 @@ for label_file_idx=1:length(label_files)
             end
             for dataIdx=1:length(dataset)
                 dataValue = dataset(dataIdx);
-                NUM_AUGMENTATIONS_PER_LABELED_REGION = randi(MAX_NUM_AUGMENTATIONS_PER_LABELED_REGION);
-                for augmentationIdx=1:NUM_AUGMENTATIONS_PER_LABELED_REGION
-                    % randomly perturb the orientation
-                    angle = rand(1,1)*360;
+                for augmentationIdx=1:NUM_AUGMENTATIONS_PER_LABELED_REGION + randi(5)
+                    if augmentationIdx == 1 % make sure there is at least one original tile in the dataset
+                        angle = 0;
+                        dx = 0;
+                        dy = 0;
+                    else
+                        % randomly perturb the orientation
+                        angle = rand(1,1)*360;
+                        % randomly perturb the offset of the region within the tile
+                        dx = 0.25 * IMAGE_SIZE * (2*rand(1,1)-1);
+                        dy = 0.25 * IMAGE_SIZE * (2*rand(1,1)-1);
+                    end
                     center = mean(dataValue.vertices); %datavalue.center;
                     center_x = center(1);
                     center_y = center(2);
-                    % randomly perturb the offset of the region within the tile
-                    dx = 140*(rand(1,1)-0.5);
-                    dy = 140*(rand(1,1)-0.5);
                     aug_image_center = [center_x + dx, center_y + dy];
                     skip_this_image = false;
-                    % do not test for proximity when augmenting the testing dataset
+                    % test for proximity when augmenting the traning and validation datasets
                     if (output_dataset_idx ~= 3)
                         for testRegionIdx=1:length(datasets(3))
                             aug_image_center_to_testRegion_vector = test_region_centers(testRegionIdx,:) - aug_image_center;
@@ -196,8 +217,29 @@ for label_file_idx=1:length(label_files)
                     % compute the annotations for the image and add it to the image augmentation dataset
                     if ~isempty(aug_image_patch)
                         aug_annotations = getRigidImagePatchAnnotations(geotiff_annotations, ...
-                            IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle, data_vector_ID);
-                        aug_image_patch = (aug_image_patch - min(aug_image_patch,[],'all')) / (max(aug_image_patch,[],'all') - min(aug_image_patch,[],'all'));
+                            IMAGE_SIZE, IMAGE_SIZE, center_y + dy, center_x + dx, angle, ...
+                            data_vector_ID, KEEP_PATCH_ON_BOUNDARY_PCT, TARGET_SIZE_THRESHOLD);
+                        % normalize the data to the 0-MAX_INTENSITY intensity range
+                        for ch=1:size(aug_image_patch, 3)
+                            aug_image_patch_channel = aug_image_patch(:, :, ch);
+                            minValue = min(aug_image_patch_channel(:));
+                            maxValue = max(aug_image_patch_channel(:));
+                            range = maxValue - minValue;
+                            if range == 0
+                                range = 1;
+                            end
+                            aug_image_patch(:, :, ch) = (aug_image_patch_channel-minValue)/range;
+                        end
+%                         if size(image_patch_aug, 3) == 3
+%                             figure(1), subplot(2, 2, 1),
+%                             imshow(image_patch_aug, []);
+%                             subplot(2, 2, 2),
+%                             imshow(image_patch_aug(:,:,1), []);
+%                             subplot(2, 2, 3),
+%                             imshow(image_patch_aug(:,:,2), []);
+%                             subplot(2, 2, 4),
+%                             imshow(image_patch_aug(:,:,3), []);
+%                         end
                         aug_image_patch = single(aug_image_patch);
                         img_filename = sprintf("img_%05d.png",data_vector_ID);
                         jsonYoloImageNew = jsonYoloImage;
@@ -227,10 +269,15 @@ for label_file_idx=1:length(label_files)
                                     bbox_tlc(1) + bbox_dims(1), bbox_tlc(2) + bbox_dims(2);
                                     bbox_tlc(1) + bbox_dims(1), bbox_tlc(2);
                                     bbox_tlc;];
+                                seg_vertices = reshape(aug_annotations(annotation_idx).segmentation, 2, [])';   % nx2 matrix
                                 label_idx = aug_annotations(annotation_idx).category_id;
                                 subplot(1,3,1), hold on, drawpolygon('Position', bbox_vertices, ...
-                                    'LineWidth',1,'FaceAlpha', 0.3, 'Color', region(label_idx).Color, ...
+                                    'LineWidth',1,'FaceAlpha', 0.2, 'Color', region(label_idx).Color, ...
                                     'SelectedColor', region(label_idx).Color);
+                                hold on
+                                drawpolygon('Position', seg_vertices, ...
+                                    'LineWidth',0.5,'FaceAlpha', 0, 'Color', 0.6*region(label_idx).Color, ...
+                                    'SelectedColor', 0.6*region(label_idx).Color);
                             end
                             
                             subplot(1,3,2), imshow(aug_image_patch, [])
@@ -247,7 +294,6 @@ for label_file_idx=1:length(label_files)
 end
 
 % Write the JSON annotations to a file with pretty printing
-yolov7_output_annotation_paths = "yolov7/annotations";
 if ~exist(yolov7_output_annotation_paths, 'dir')
     mkdir(yolov7_output_annotation_paths)
 end
@@ -261,7 +307,8 @@ for dataset_idx=1:3
     fclose(fid);
 end
 
-function image_annotations = getRigidImagePatchAnnotations(annotations, height, width, center_y, center_x, angle, image_id)
+function image_annotations = getRigidImagePatchAnnotations(annotations, height, ...
+    width, center_y, center_x, angle, image_id, KEEP_PATCH_ON_BOUNDARY_PCT, TARGET_SIZE_THRESHOLD)
 jsonYoloAnnotation = struct("category_id", 0, ...
     "image_id", 0, ...
     "bb", struct("x", 0, ...
@@ -293,22 +340,83 @@ for annotation_idx=1:length(annotations)
         ones(1,num_vertices)];
     vertices_transformed = vertices_transformed(1:2,:)';
     vertices_transformed = vertices_transformed - ones(num_vertices,1)*xy_start_img;    
-    bbox_tlc_img = min(vertices_transformed,[],1);
-    bbox_dims = max(vertices_transformed,[],1) - bbox_tlc_img;
-    bbox_annotation_transformed = [bbox_tlc_img, bbox_dims];
+    vertices_transformed = round(vertices_transformed);  % convert coordinates to integers
+    vertices_transformed = unique(vertices_transformed, 'rows', 'stable');  % remove repeated indices and keep the order
+    % bbox_tlc_img = min(vertices_transformed,[],1);
+    % bbox_dims = max(vertices_transformed,[],1) - bbox_tlc_img;
+    % bbox_annotation_transformed = [bbox_tlc_img, bbox_dims];
     
     % test intersection
-    overlapRatio = bboxOverlapRatio(imageBBox, bbox_annotation_transformed);
+    % overlapRatio = bboxOverlapRatio(imageBBox, bbox_annotation_transformed);
         
-    if (overlapRatio > 0)
+    % if (overlapRatio > 0)
         % put bbox in image coordinate system
         % clip the bbox to the image boundaries
+        % bbox_tlc_img(bbox_tlc_img < 0) = 0;
+        % if (bbox_tlc_img(1) + bbox_dims(1) > width)
+        %     bbox_dims(1) = width - bbox_tlc_img(1);
+        % end
+        % if (bbox_tlc_img(2) + bbox_dims(2) > height)
+        %     bbox_dims(2) = height - bbox_tlc_img(2);
+        % end
+
+        % clip the segmentation to the image boundaries
+        % vertices_transformed(vertices_transformed < 0) = 0;
+        % x_values = vertices_transformed(:, 1);
+        % y_values = vertices_transformed(:, 2);
+        % x_values(x_values > width) = width;
+        % y_values(y_values > height) = height;
+        % vertices_transformed = [x_values y_values];
+
+    % test intersection
+    % The vertices need to remove all the points outside the image
+    % range to be able to well represent the part that is inside the
+    % image range, instead of simply replacing the negative values with 
+    % zeros, or greater-than-width/height values with width/height.
+    % condition = ((vertices_transformed(:, 1) < 0) | (vertices_transformed(:, 2) < 0) ...
+    %     | (vertices_transformed(:, 1) > width) | (vertices_transformed(:, 2) > height));
+    % vertices_transformed(condition, :)=[];
+
+    if (~all(vertices_transformed(:)))
+        continue;
+    end
+    poly_target = polyshape(vertices_transformed(:,1), vertices_transformed(:,2), 'Simplify', false);
+    poly_image = polyshape([1, 1, width, width], [1, height, height, 1], 'Simplify', false);
+    poly_intersect = intersect(poly_target, poly_image);
+    vertices_transformed = poly_intersect.Vertices;
+    nan_idx = isnan(vertices_transformed(:, 1)) | isnan(vertices_transformed(:, 2));
+    vertices_transformed = vertices_transformed(~nan_idx, :);
+    
+    if size(vertices_transformed, 1) > 2 % require at least 3 points
+
+        % The bounding box needs to recalculated based on the new vertices.
+        % The old bounding box width (for example) can still be within the 
+        % image width range, but the actuall target part that is inside the 
+        % image range might only fill a samll corner section of the bounding
+        % box, thus the old bounding box does not represent the region well. 
+        bbox_tlc_img = min(vertices_transformed,[],1);  
+        % add 6 pixels in either direction to allow bigger bbox margin
+        bbox_tlc_img = bbox_tlc_img - [3, 3];
+        bbox_dims = max(vertices_transformed,[],1) - bbox_tlc_img + [3, 3];
         bbox_tlc_img(bbox_tlc_img < 0) = 0;
         if (bbox_tlc_img(1) + bbox_dims(1) > width)
             bbox_dims(1) = width - bbox_tlc_img(1);
         end
         if (bbox_tlc_img(2) + bbox_dims(2) > height)
             bbox_dims(2) = height - bbox_tlc_img(2);
+        end
+
+        % filter out small regions
+        % if rand(1) > KEEP_PATCH_ON_BOUNDARY_PCT
+        %     continue;
+        % end
+        % if (((bbox_tlc_img(1) + bbox_dims(1) - width) > 0.8*bbox_dims(1)) ...   % Ignore targets that have 80% region outside the image range
+        %         || ((bbox_tlc_img(2) + bbox_dims(2) - height) > 0.8*bbox_dims(2)))
+        %     continue;
+        % end
+        if ((bbox_dims(1) < TARGET_SIZE_THRESHOLD) ||  (bbox_dims(2) < TARGET_SIZE_THRESHOLD)) 
+            % Ignore small targets
+            continue;
         end
         
         %fprintf(1,"Found annotation in image.\n");
@@ -320,7 +428,7 @@ for annotation_idx=1:length(annotations)
         jsonYoloAnnotationNew.bb.width = int32(bbox_dims(1));
         jsonYoloAnnotationNew.bb.height = int32(bbox_dims(2));
         jsonYoloAnnotationNew.area =  bbox_dims(1) * bbox_dims(2);
-        jsonYoloAnnotationNew.segmentation = [];
+        jsonYoloAnnotationNew.segmentation = reshape(vertices_transformed.', 1, []);  % [x1, y1, x2, y2, ...]
         if (bbox_dims(1) > 3 && bbox_dims(2) > 3) 
             image_annotations = [image_annotations; jsonYoloAnnotationNew];
         end
@@ -353,11 +461,13 @@ xy_translation = [0.5 * (cropped_width - (cos_t * cropped_width + sin_t * croppe
     0.5 * (cropped_height - (-sin_t * cropped_width + cos_t * cropped_height))];
 image_patch_T = [cos_t, sin_t, xy_translation(1); -sin_t, cos_t, xy_translation(2); 0, 0, 1];
 T = affine2d(image_patch_T');
-transformed_image_patch = imwarp(cropped_image_patch, T, 'OutputView', imref2d(size(cropped_image_patch)));
+% transformed_image_patch = imwarp(cropped_image_patch, T, 'OutputView', imref2d(size(cropped_image_patch))); % works only for single-channle
+%iamges
+transformed_image_patch = imwarp(cropped_image_patch, T);
 xy_center_newimg = floor(size(transformed_image_patch) / 2.0);
 xy_start = [xy_center_newimg(1) - (width / 2) + 1, xy_center_newimg(2) - (height / 2) + 1];
 xy_end = [xy_center_newimg(1) + (width / 2), xy_center_newimg(2) + (height / 2)];
-image_patch_aug = transformed_image_patch(xy_start(2):xy_end(2), xy_start(1):xy_end(1));
+image_patch_aug = transformed_image_patch(xy_start(2):xy_end(2), xy_start(1):xy_end(1), :);
 end
 
 
@@ -393,6 +503,6 @@ end
 %         "height": 89.44141
 %       },
 %       "area": 0.0,
-%       “segmentation”: [[34, 55, 10, 71, 76, 23, 98, 43, 11, 8]]  		% not necessary
+%       “segmentation”: [34, 55, 10, 71, 76, 23, 98, 43, 11, 8]  		% [x1, y1, x2, y2]
 %     },
 % }
